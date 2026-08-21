@@ -5,6 +5,11 @@ import typer
 app = typer.Typer(help="Cisco Switch Assessment Framework")
 
 
+@app.callback()
+def main() -> None:
+    """Cisco Switch Assessment Framework."""
+
+
 @app.command()
 def version() -> None:
     """Print the framework version."""
