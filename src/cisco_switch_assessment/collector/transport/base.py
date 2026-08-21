@@ -1,0 +1,16 @@
+from dataclasses import dataclass
+from typing import Protocol
+from cisco_switch_assessment.models import Device
+
+@dataclass(frozen=True, slots=True)
+class SSHTimeouts:
+    connect: float = 10.0
+    auth: float = 10.0
+    read_poll: float = 0.1
+
+class SSHTransport(Protocol):
+    def connect(self, device: Device, timeouts: SSHTimeouts) -> None: ...
+    def send(self, data: bytes) -> None: ...
+    def receive(self, max_bytes: int = 65535) -> bytes: ...
+    def receive_ready(self) -> bool: ...
+    def close(self) -> None: ...

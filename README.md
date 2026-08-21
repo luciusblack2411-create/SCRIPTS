@@ -8,4 +8,4 @@ Core pipeline:
 
 `inventory -> collector -> raw -> parsers -> normalized models -> assessment -> reporting`
 
-> Repository bootstrap. Implementation work is developed through feature branches and reviewed before integration.
+Current MVP vertical slice: SSH collection of `show version` with byte-preserving RAW storage.
