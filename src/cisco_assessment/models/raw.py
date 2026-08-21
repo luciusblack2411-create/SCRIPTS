@@ -63,7 +63,7 @@ class RawCommandOutput(BaseModel):
         return cleaned
 
     @model_validator(mode="after")
-    def integrity_metadata_matches_content(self) -> "RawCommandOutput":
+    def integrity_metadata_matches_content(self) -> RawCommandOutput:
         payload = self.content.encode(self.encoding)
         expected_hash = sha256_digest(payload).hexdigest()
         if self.byte_length != len(payload):
@@ -81,7 +81,7 @@ class RawCommandOutput(BaseModel):
         encoding: str = "utf-8",
         captured_at: datetime | None = None,
         is_truncated: bool = False,
-    ) -> "RawCommandOutput":
+    ) -> RawCommandOutput:
         """Build RAW evidence and calculate integrity metadata consistently."""
         normalized_encoding = codecs.lookup(encoding).name
         payload = content.encode(normalized_encoding)

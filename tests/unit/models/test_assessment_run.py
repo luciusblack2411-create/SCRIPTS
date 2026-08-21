@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -54,13 +54,13 @@ def test_assessment_run_rejects_naive_timestamp() -> None:
             device_id=device.id,
             framework_version="0.1.0",
             target_snapshot=device.snapshot(),
-            started_at=datetime(2026, 8, 21, 17, 14),
+            started_at=datetime(2026, 8, 21, 17, 14),  # noqa: DTZ001
         )
 
 
 def test_assessment_run_rejects_finish_before_start() -> None:
     device = Device(management_address="10.10.10.20")
-    started = datetime(2026, 8, 21, 23, 14, tzinfo=timezone.utc)
+    started = datetime(2026, 8, 21, 23, 14, tzinfo=UTC)
 
     with pytest.raises(ValidationError):
         AssessmentRun(

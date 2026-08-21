@@ -64,7 +64,7 @@ class Device(DomainModel):
         return normalize_utc(value)
 
     @model_validator(mode="after")
-    def updated_not_before_created(self) -> "Device":
+    def updated_not_before_created(self) -> Device:
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must be greater than or equal to created_at")
         return self

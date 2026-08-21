@@ -53,7 +53,7 @@ class AssessmentRun(DomainModel):
         return normalize_utc(value)
 
     @model_validator(mode="after")
-    def finished_not_before_started(self) -> "AssessmentRun":
+    def finished_not_before_started(self) -> AssessmentRun:
         if self.finished_at is not None and self.finished_at < self.started_at:
             raise ValueError("finished_at must be greater than or equal to started_at")
         return self

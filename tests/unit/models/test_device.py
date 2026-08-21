@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -26,7 +26,7 @@ def test_device_rejects_blank_management_address() -> None:
 
 
 def test_device_rejects_updated_at_before_created_at() -> None:
-    created = datetime(2026, 8, 21, 12, 0, tzinfo=timezone.utc)
+    created = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
 
     with pytest.raises(ValidationError):
         Device(

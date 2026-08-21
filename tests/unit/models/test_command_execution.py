@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -64,7 +64,7 @@ def test_command_execution_rejects_negative_duration() -> None:
 
 def test_command_execution_rejects_finish_before_start() -> None:
     run = make_run()
-    started = datetime(2026, 8, 21, 23, 14, tzinfo=timezone.utc)
+    started = datetime(2026, 8, 21, 23, 14, tzinfo=UTC)
 
     with pytest.raises(ValidationError):
         CommandExecution(
