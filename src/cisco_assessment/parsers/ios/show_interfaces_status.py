@@ -169,14 +169,14 @@ class IOSShowInterfacesStatusParser(BaseParser[InterfaceObservation]):
     ) -> tuple[dict[str, Any], Any]:
         try:
             if platform is PlatformFamily.IOS:
-                from genie.libs.parser.ios.show_interface import (  # type: ignore[import-not-found]
+                from genie.libs.parser.ios.show_interface import (  # type: ignore[import-not-found,import-untyped]
                     ShowInterfacesStatus as GenieShowInterfacesStatus,
                 )
             else:
-                from genie.libs.parser.iosxe.show_interface import (  # type: ignore[import-not-found]
+                from genie.libs.parser.iosxe.show_interface import (  # type: ignore[import-not-found,import-untyped]
                     ShowInterfacesStatus as GenieShowInterfacesStatus,
                 )
-            from genie.libs.parser.utils.common import Common  # type: ignore[import-not-found]
+            from genie.libs.parser.utils.common import Common  # type: ignore[import-not-found,import-untyped]
         except ImportError as exc:
             raise UnrecognizedFormatError(
                 "Genie spike dependencies are not installed; install the isolated spike requirements"
