@@ -91,7 +91,7 @@ class HardwareInventoryRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     ordinal: PositiveInt
-    id: str = Field(pattern=r"^hw:\d{4,}$")
+    id: str = Field(default="", pattern=r"^hw:\d{4,}$")
     name: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=512)
     pid: str | None = Field(default=None, max_length=128)
@@ -215,6 +215,41 @@ class HardwareInventory(BaseModel):
     vendor: Literal["Cisco"] = "Cisco"
     platform: PlatformFamily
     records: tuple[HardwareInventoryRecord, ...] = Field(min_length=1)
+
+    def __init__(
+        self,
+        *,
+        platform: PlatformFamily,
+        records: tuple[HardwareInventoryRecord, ...] | None = None,
+        schema_version: Literal["0.1", "0.2"] = HARDWARE_INVENTORY_SCHEMA_VERSION,
+        vendor: Literal["Cisco"] = "Cisco",
+        chassis: HardwareComponent | None = None,
+        modules: tuple[HardwareComponent, ...] = (),
+        components: tuple[HardwareComponent, ...] = (),
+    ) -> None:
+        """Construct v0.2 directly or accept the temporary v0.1 input shape."""
+
+        if records is not None:
+            if chassis is not None or modules or components:
+                raise ValueError(
+                    "records cannot be combined with v0.1 chassis/modules/components"
+                )
+            super().__init__(
+                schema_version=schema_version,
+                vendor=vendor,
+                platform=platform,
+                records=records,
+            )
+            return
+
+        super().__init__(
+            schema_version=schema_version,
+            vendor=vendor,
+            platform=platform,
+            chassis=chassis,
+            modules=modules,
+            components=components,
+        )
 
     @model_validator(mode="before")
     @classmethod
