@@ -8,7 +8,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
 from cisco_assessment.assessment.evidence import FindingEvidence, SourceTrace
 from cisco_assessment.assessment.models import AssessmentResult, Finding, RuleOutcome
-from cisco_assessment.models import AssessmentRun, DeviceInfo
+from cisco_assessment.models import AssessmentRun, DeviceInfo, HardwareComponent, HardwareInventory
 from cisco_assessment.models.base import utc_now
 
 from .errors import ReportBuildError
@@ -19,6 +19,8 @@ from .models import (
     DeviceInfoReport,
     EvidenceReport,
     FindingReport,
+    HardwareComponentReport,
+    HardwareInventoryReport,
     ReportMetadata,
     RuleOutcomeReport,
     RuleReferenceReport,
@@ -28,7 +30,7 @@ from .models import (
 
 
 class AssessmentReportBuilder:
-    """Map AssessmentRun + AssessmentResult into the renderer-agnostic report contract."""
+    """Map assessment-domain artifacts into the renderer-agnostic report contract."""
 
     def build(
         self,
@@ -36,11 +38,16 @@ class AssessmentReportBuilder:
         run: AssessmentRun,
         result: AssessmentResult,
         device_info: DeviceInfo,
+        hardware_inventory: HardwareInventory | None = None,
         generated_at: datetime | None = None,
         report_id: UUID | None = None,
     ) -> AssessmentReport:
-        """Build one canonical report while validating cross-layer identity references."""
-        self._validate_inputs(run=run, result=result, device_info=device_info)
+        self._validate_inputs(
+            run=run,
+            result=result,
+            device_info=device_info,
+            hardware_inventory=hardware_inventory,
+        )
 
         status_counts = {status: 0 for status in AssessmentStatus}
         for outcome in result.outcomes:
@@ -52,8 +59,7 @@ class AssessmentReportBuilder:
 
         return AssessmentReport(
             metadata=ReportMetadata(
-                report_id=report_id
-                or uuid5(NAMESPACE_URL, f"cisco-assessment-report:{run.id}"),
+                report_id=report_id or uuid5(NAMESPACE_URL, f"cisco-assessment-report:{run.id}"),
                 generated_at=generated_at or run.finished_at or utc_now(),
                 generator_version=run.framework_version,
             ),
@@ -84,6 +90,24 @@ class AssessmentReportBuilder:
                 uptime_text=device_info.uptime_text,
                 boot_mode=device_info.boot_mode,
             ),
+            hardware_inventory=(
+                None
+                if hardware_inventory is None
+                else HardwareInventoryReport(
+                    schema_version=hardware_inventory.schema_version,
+                    vendor=hardware_inventory.vendor,
+                    platform=hardware_inventory.platform,
+                    chassis=self._map_hardware_component(hardware_inventory.chassis),
+                    modules=tuple(
+                        self._map_hardware_component_required(item)
+                        for item in hardware_inventory.modules
+                    ),
+                    components=tuple(
+                        self._map_hardware_component_required(item)
+                        for item in hardware_inventory.components
+                    ),
+                )
+            ),
             summary=AssessmentSummary(
                 rules_evaluated=len(result.outcomes),
                 findings_total=len(result.findings),
@@ -103,6 +127,7 @@ class AssessmentReportBuilder:
         run: AssessmentRun,
         result: AssessmentResult,
         device_info: DeviceInfo,
+        hardware_inventory: HardwareInventory | None,
     ) -> None:
         if result.assessment_run_id != run.id:
             raise ReportBuildError("AssessmentResult assessment_run_id does not match AssessmentRun")
@@ -112,6 +137,8 @@ class AssessmentReportBuilder:
             raise ReportBuildError("AssessmentResult platform does not match DeviceInfo platform")
         if result.normalized_model != type(device_info).__name__:
             raise ReportBuildError("AssessmentResult normalized_model does not match DeviceInfo")
+        if hardware_inventory is not None and hardware_inventory.platform != device_info.platform:
+            raise ReportBuildError("HardwareInventory platform does not match DeviceInfo platform")
 
         for evidence in AssessmentReportBuilder._all_evidence(result):
             for source in evidence.sources:
@@ -123,13 +150,26 @@ class AssessmentReportBuilder:
     @staticmethod
     def _all_evidence(result: AssessmentResult) -> tuple[FindingEvidence, ...]:
         return tuple(
-            evidence
-            for outcome in result.outcomes
-            for evidence in outcome.evidence
-        ) + tuple(
-            evidence
-            for finding in result.findings
-            for evidence in finding.evidence
+            evidence for outcome in result.outcomes for evidence in outcome.evidence
+        ) + tuple(evidence for finding in result.findings for evidence in finding.evidence)
+
+    @staticmethod
+    def _map_hardware_component(
+        component: HardwareComponent | None,
+    ) -> HardwareComponentReport | None:
+        if component is None:
+            return None
+        return AssessmentReportBuilder._map_hardware_component_required(component)
+
+    @staticmethod
+    def _map_hardware_component_required(component: HardwareComponent) -> HardwareComponentReport:
+        return HardwareComponentReport(
+            name=component.name,
+            description=component.description,
+            pid=component.pid,
+            vid=component.vid,
+            serial_number=component.serial_number,
+            kind=component.kind.value,
         )
 
     @staticmethod
@@ -159,10 +199,7 @@ class AssessmentReportBuilder:
     @classmethod
     def _map_outcome(cls, outcome: RuleOutcome) -> RuleOutcomeReport:
         return RuleOutcomeReport(
-            rule=RuleReferenceReport(
-                rule_id=outcome.rule_id,
-                rule_version=outcome.rule_version,
-            ),
+            rule=RuleReferenceReport(rule_id=outcome.rule_id, rule_version=outcome.rule_version),
             title=outcome.title,
             category=outcome.category,
             normalized_model=outcome.normalized_model,
@@ -181,10 +218,7 @@ class AssessmentReportBuilder:
         return FindingReport(
             finding_id=finding.finding_id,
             device_id=device_id,
-            rule=RuleReferenceReport(
-                rule_id=finding.rule_id,
-                rule_version=finding.rule_version,
-            ),
+            rule=RuleReferenceReport(rule_id=finding.rule_id, rule_version=finding.rule_version),
             title=finding.title,
             description=finding.description,
             category=finding.category,
