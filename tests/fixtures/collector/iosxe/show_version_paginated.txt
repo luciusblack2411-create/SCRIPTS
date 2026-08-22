@@ -1,0 +1,5 @@
+show version\r\nCisco IOS XE Software, Version 17.09.04a\r\nCisco IOS Software [Cupertino], Catalyst L3 Switch Software\r\nSWITCH uptime is 3 days, 2 hours\r\n--More--
+===PAGE===
+\r\nSystem image file is "flash:packages.conf"\r\nLast reload reason: power-on\r\n--More--
+===PAGE===
+\r\nConfiguration register is 0x102\r\nSWITCH#
