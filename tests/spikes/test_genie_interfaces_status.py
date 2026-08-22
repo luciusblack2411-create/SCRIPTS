@@ -1,11 +1,6 @@
 from pathlib import Path
 from uuid import uuid4
 
-import pytest
-
-pytest.importorskip("genie")
-pytest.importorskip("genie.libs.parser")
-
 from cisco_assessment.catalog.enums import CommandId
 from cisco_assessment.models import CommandExecution, RawCommandOutput
 from cisco_assessment.models.enums import PlatformFamily
