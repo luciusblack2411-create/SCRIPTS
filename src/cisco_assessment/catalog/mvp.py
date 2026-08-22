@@ -57,7 +57,7 @@ COMMAND_CATALOG_V0_1 = CommandCatalog(
             CommandId.SYSTEM_INVENTORY,
             CommandCategory.SYSTEM,
             "Collect chassis, module, serial-number, and field-replaceable inventory data.",
-            NormalizedModelId.INVENTORY_ITEM,
+            NormalizedModelId.HARDWARE_INVENTORY,
             CommandRequirement.REQUIRED,
             "show inventory",
             ParserId.IOS_SHOW_INVENTORY_V1,

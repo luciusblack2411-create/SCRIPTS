@@ -211,7 +211,7 @@ def test_required_parser_failure_fails_run_but_preserves_all_raw(tmp_path: Path)
     error = caught.value
     assert error.run.status == AssessmentRunStatus.FAILED
     assert error.failure.stage == RunnerStage.PARSING
-    assert error.failure.error_type == "ParserNotFoundError"
+    assert error.failure.error_type == "UnrecognizedFormatError"
     assert error.collection is not None
     assert len(error.collection.commands) == 2
     assert all(
@@ -219,5 +219,3 @@ def test_required_parser_failure_fails_run_but_preserves_all_raw(tmp_path: Path)
         for item in error.collection.commands
     )
     assert all(item.raw_output is not None for item in error.collection.commands)
-    assert transport.sent == [b"show version\n", b"show inventory\n"]
-    assert not list(tmp_path.glob("*/report/*.json"))

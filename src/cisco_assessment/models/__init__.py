@@ -4,7 +4,7 @@ from .assessment import AssessmentRun
 from .device import Device, DeviceSnapshot
 from .enums import AssessmentRunStatus, CommandExecutionStatus, PlatformFamily
 from .execution import CommandExecution
-from .normalized import DeviceInfo
+from .normalized import DeviceInfo, HardwareComponent, HardwareComponentKind, HardwareInventory
 from .raw import RawCommandOutput
 
 __all__ = [
@@ -15,6 +15,9 @@ __all__ = [
     "Device",
     "DeviceInfo",
     "DeviceSnapshot",
+    "HardwareComponent",
+    "HardwareComponentKind",
+    "HardwareInventory",
     "PlatformFamily",
     "RawCommandOutput",
 ]

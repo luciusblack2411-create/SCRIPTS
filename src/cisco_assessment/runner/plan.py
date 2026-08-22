@@ -54,3 +54,12 @@ SHOW_VERSION_PLAN_V0_2 = AssessmentPlan(
     version="0.2",
     commands=(AssessmentPlanItem(command_id=CommandId.SYSTEM_VERSION),),
 )
+
+HARDWARE_INVENTORY_PLAN_V0_1 = AssessmentPlan(
+    plan_id="hardware-inventory",
+    version="0.1",
+    commands=(
+        AssessmentPlanItem(command_id=CommandId.SYSTEM_VERSION),
+        AssessmentPlanItem(command_id=CommandId.SYSTEM_INVENTORY),
+    ),
+)

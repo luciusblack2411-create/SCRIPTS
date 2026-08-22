@@ -4,7 +4,12 @@ import pytest
 from pydantic import ValidationError
 
 from cisco_assessment.catalog import CommandId
-from cisco_assessment.runner import AssessmentPlan, AssessmentPlanItem
+from cisco_assessment.runner import (
+    HARDWARE_INVENTORY_PLAN_V0_1,
+    SHOW_VERSION_PLAN_V0_2,
+    AssessmentPlan,
+    AssessmentPlanItem,
+)
 
 
 def test_assessment_plan_preserves_command_order() -> None:
@@ -23,6 +28,14 @@ def test_assessment_plan_preserves_command_order() -> None:
         CommandId.SYSTEM_STACK,
         CommandId.TIME_NTP_STATUS,
     )
+
+
+def test_productive_hardware_inventory_plan_runs_version_then_inventory() -> None:
+    assert HARDWARE_INVENTORY_PLAN_V0_1.command_ids == (
+        CommandId.SYSTEM_VERSION,
+        CommandId.SYSTEM_INVENTORY,
+    )
+    assert SHOW_VERSION_PLAN_V0_2.command_ids == (CommandId.SYSTEM_VERSION,)
 
 
 def test_assessment_plan_rejects_duplicate_commands() -> None:

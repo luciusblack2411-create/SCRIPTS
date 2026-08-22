@@ -1,0 +1,8 @@
+NAME: "Chassis", DESCR: "Cisco Catalyst 9300-48P Chassis"
+PID: C9300-48P          , VID: V02  , SN: FOC0000AAAA
+
+NAME: "Power Supply Module 0", DESCR: "Cisco Catalyst 9300 715W AC Power Supply"
+PID: PWR-C1-715WAC     , VID: V01  , SN: DTM0000BBBB
+
+NAME: "Te1/1/1", DESCR: "SFP-10GBase-SR"
+PID: SFP-10G-SR        , VID: V03  , SN: AGM0000CCCC

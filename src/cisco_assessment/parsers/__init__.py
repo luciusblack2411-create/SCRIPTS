@@ -12,7 +12,7 @@ from .errors import (
     UnrecognizedFormatError,
     UnsupportedPlatformError,
 )
-from .ios import IOSShowVersionParser
+from .ios import IOSShowInventoryParser, IOSShowVersionParser
 from .models import (
     FieldEvidence,
     ParsedPayload,
@@ -26,9 +26,10 @@ from .registry import ParserRegistry
 
 
 def build_parser_registry() -> ParserRegistry:
-    """Build the explicit v0.1 parser registry."""
+    """Build the explicit productive parser registry."""
     registry = ParserRegistry()
     registry.register(IOSShowVersionParser())
+    registry.register(IOSShowInventoryParser())
     return registry
 
 
@@ -38,6 +39,7 @@ __all__ = [
     "DuplicateParserError",
     "EmptyRawOutputError",
     "FieldEvidence",
+    "IOSShowInventoryParser",
     "IOSShowVersionParser",
     "ParseResult",
     "ParseStatus",
