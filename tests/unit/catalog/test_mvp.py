@@ -51,6 +51,19 @@ def test_show_version_contract_is_stable() -> None:
     assert variant.parser_id is ParserId.IOS_SHOW_VERSION_V1
 
 
+def test_show_inventory_contract_is_productive() -> None:
+    definition = COMMAND_CATALOG_V0_1.get(CommandId.SYSTEM_INVENTORY)
+    variant = COMMAND_CATALOG_V0_1.resolve(
+        CommandId.SYSTEM_INVENTORY,
+        PlatformFamily.IOS_XE,
+    )
+    assert definition.normalized_model is NormalizedModelId.HARDWARE_INVENTORY
+    assert definition.requirement is CommandRequirement.REQUIRED
+    assert variant is not None
+    assert variant.cli_command == "show inventory"
+    assert variant.parser_id is ParserId.IOS_SHOW_INVENTORY_V1
+
+
 def test_all_mvp_cli_commands_are_read_only_show_commands() -> None:
     for definition in COMMAND_CATALOG_V0_1.commands:
         assert definition.read_only is True
