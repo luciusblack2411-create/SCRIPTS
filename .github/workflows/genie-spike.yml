@@ -32,6 +32,7 @@ jobs:
           'pyats==26.6'
           'pyats.log==26.6'
           'pyats.utils==26.6'
+          'pyats.easypy==26.6'
 
       - name: Install non-framework parser imports
         run: >-
@@ -49,10 +50,10 @@ jobs:
           print(ShowInterfacesStatus, Common.convert_intf_name('Gi1/0/1'))"
 
       - name: Run Genie spike tests
-        run: pytest -q -ra tests/spikes/test_genie_interfaces_status.py
+        run: pytest -q -ra spikes/test_genie_interfaces_status.py
 
       - name: Lint spike code
-        run: ruff check src/cisco_assessment/models/interface.py src/cisco_assessment/parsers/ios/show_interfaces_status.py tests/spikes/test_genie_interfaces_status.py
+        run: ruff check src/cisco_assessment/models/interface.py src/cisco_assessment/parsers/ios/show_interfaces_status.py spikes/test_genie_interfaces_status.py
 
       - name: Type check framework
         run: mypy src/cisco_assessment
