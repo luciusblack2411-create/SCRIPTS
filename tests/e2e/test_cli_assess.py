@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-from click import Group, Option
-from typer.main import get_command
 from typer.testing import CliRunner
 
 from cisco_assessment import cli
 from cisco_assessment.models import AssessmentRunStatus, PlatformFamily
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 class FakeRunner:
@@ -70,16 +71,11 @@ def test_assess_cli_uses_hidden_password_prompt(monkeypatch, tmp_path: Path) -> 
 
 
 def test_assess_cli_exposes_no_password_argument() -> None:
-    command = get_command(cli.app)
-    assert isinstance(command, Group)
-    assess_command = command.commands["assess"]
-    option_names = {
-        option_name
-        for parameter in assess_command.params
-        if isinstance(parameter, Option)
-        for option_name in parameter.opts
-    }
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["assess", "--help"])
 
-    assert "--password" not in option_names
-    assert "--key-file" in option_names
-    assert "--use-agent" in option_names
+    assert result.exit_code == 0, result.output
+    help_output = _ANSI_ESCAPE_RE.sub("", result.output)
+    assert "--password" not in help_output
+    assert "--key-file" in help_output
+    assert "--use-agent" in help_output
