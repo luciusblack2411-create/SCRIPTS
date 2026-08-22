@@ -1,0 +1,50 @@
+NAME: "Switch 1", DESCR: "Cisco Catalyst 9300 48 Port PoE+ Switch"
+PID: C9300-48P       , VID: V02  , SN: FOC0000AAAA
+
+NAME: "StackPort1/1", DESCR: "StackPort1/1"
+PID: STACK-T1-50CM    , VID: V01  , SN: FOC0000A101
+
+NAME: "StackPort1/2", DESCR: "StackPort1/2"
+PID: STACK-T1-50CM    , VID: V01  , SN: FOC0000A102
+
+NAME: "Power Supply Module 1", DESCR: "Cisco Catalyst 9300 715WAC Power Supply"
+PID: PWR-C1-715WAC    , VID: V02  , SN: DTN0000A111
+
+NAME: "Power Supply Module 2", DESCR: "Cisco Catalyst 9300 715WAC Power Supply"
+PID: PWR-C1-715WAC    , VID: V02  , SN: DTN0000A112
+
+NAME: "Fan Tray", DESCR: "Cisco Catalyst 9300 Fan Module"
+PID: C9300-FAN        , VID: V01  , SN: FOC0000A120
+
+NAME: "Gi1/1/1", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD       , VID: V03  , SN: FNS0000A201
+
+NAME: "Gi1/1/2", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD       , VID: V03  , SN: FNS0000A202
+
+NAME: "Gi1/1/3", DESCR: "1000BaseLX SFP"
+PID: GLC-LH-SMD       , VID: V03  , SN: FNS0000A203
+
+NAME: "Gi1/1/4", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD       , VID: V03  , SN: FNS0000A204
+
+NAME: "Switch 2", DESCR: "Cisco Catalyst 9300 48 Port PoE+ Switch"
+PID: C9300-48P        , VID: V02  , SN: FOC0000BBBB
+
+NAME: "Power Supply Module 1/2", DESCR: "Cisco Catalyst 9300 715WAC Power Supply"
+PID: PWR-C1-715WAC    , VID: V02  , SN: DTN0000B111
+
+NAME: "Power Supply Module 2/2", DESCR: "Cisco Catalyst 9300 715WAC Power Supply"
+PID: PWR-C1-715WAC    , VID: V02  , SN: DTN0000B112
+
+NAME: "Gi2/1/1", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD       , VID: V03  , SN: FNS0000B201
+
+NAME: "Gi2/1/2", DESCR: "1000BaseSX SFP"
+--More--        PID: GLC-SX-MMD       , VID: V03  , SN: FNS0000B202
+
+NAME: "Gi2/1/3", DESCR: "1000BaseLX SFP"
+PID: GLC-LH-SMD       , VID: V03  , SN: FNS0000B203
+
+NAME: "Gi2/1/4", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD       , VID: V03  , SN: FNS0000B204

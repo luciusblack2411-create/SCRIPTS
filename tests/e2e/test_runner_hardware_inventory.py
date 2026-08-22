@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cisco_assessment.assessment import AssessmentStatus
 from cisco_assessment.catalog import CommandId, NormalizedModelId
 from cisco_assessment.collector.transport import SSHCredentials
 from cisco_assessment.models import (
@@ -11,11 +12,13 @@ from cisco_assessment.models import (
     Device,
     PlatformFamily,
 )
+from cisco_assessment.parsers import ParseStatus
 from cisco_assessment.runner import HARDWARE_INVENTORY_PLAN_V0_1, build_runner
 
 _FIXTURES = Path(__file__).parents[1] / "fixtures" / "ios"
 _VERSION = _FIXTURES / "show_version" / "c9300_iosxe.txt"
 _INVENTORY = _FIXTURES / "show_inventory" / "c9300_iosxe.txt"
+_INVENTORY_PAGER = _FIXTURES / "show_inventory" / "c9300_iosxe_pager_backspace.txt"
 _PROMPT = b"SW-CORE-01#"
 
 
@@ -44,6 +47,20 @@ class HardwareInventoryTransport:
 
     def close(self) -> None:
         self.closed = True
+
+
+class PagedHardwareInventoryTransport(HardwareInventoryTransport):
+    def __init__(self) -> None:
+        inventory = _INVENTORY_PAGER.read_bytes()
+        marker_end = inventory.index(b"--More--") + len(b"--More--")
+        self._chunks = [
+            _PROMPT,
+            b"show version\r\n" + _VERSION.read_bytes() + b"\r\n" + _PROMPT,
+            b"show inventory\r\n" + inventory[:marker_end],
+            inventory[marker_end:] + b"\r\n" + _PROMPT,
+        ]
+        self.sent: list[bytes] = []
+        self.closed = False
 
 
 def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_trace(
@@ -107,3 +124,52 @@ def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_
     assert source["raw_sha256"] == inventory_raw.sha256
     assert source["parser_id"] == "ios.show_inventory.v1"
     assert result.report_path.read_bytes() == result.rendered_report.content
+
+
+def test_hardware_inventory_plan_completes_with_pager_artifacts_in_preserved_raw(
+    tmp_path: Path,
+) -> None:
+    transport = PagedHardwareInventoryTransport()
+    runner = build_runner(output_root=tmp_path, transport_factory=lambda: transport)
+    device = Device(
+        management_address="192.0.2.10",
+        hostname="inventory-core-01",
+        platform_family=PlatformFamily.IOS_XE,
+    )
+
+    result = runner.run(
+        device=device,
+        credentials=SSHCredentials(username="assessment", password="secret"),
+        plan=HARDWARE_INVENTORY_PLAN_V0_1,
+    )
+
+    assert result.run.status is AssessmentRunStatus.COMPLETED
+    assert transport.sent == [b"show version\n", b"show inventory\n", b" "]
+    assert len(result.raw_outputs) == 2
+    inventory_raw = result.raw_outputs[1]
+    assert "--More--" in inventory_raw.content
+    assert "\x08" in inventory_raw.content
+
+    hardware_parse = result.hardware_inventory_parse_result
+    assert hardware_parse is not None
+    assert hardware_parse.status is ParseStatus.SUCCESS
+    assert hardware_parse.data.chassis is not None
+    components = (
+        (hardware_parse.data.chassis,)
+        + hardware_parse.data.modules
+        + hardware_parse.data.components
+    )
+    assert len(components) == 17
+    target = next(component for component in components if component.name == "Gi2/1/2")
+    assert target.pid == "GLC-SX-MMD"
+    assert target.vid == "V03"
+    assert all(
+        warning.code != "inventory_record_incomplete" for warning in hardware_parse.warnings
+    )
+    assert len(result.assessment_result.outcomes) == 6
+    assert all(
+        outcome.status is not AssessmentStatus.ERROR
+        for outcome in result.assessment_result.outcomes
+    )
+    assert hardware_parse.trace.raw_output_id == inventory_raw.id
+    assert hardware_parse.trace.raw_sha256 == inventory_raw.sha256
