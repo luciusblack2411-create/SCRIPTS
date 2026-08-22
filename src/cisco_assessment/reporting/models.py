@@ -12,7 +12,7 @@ from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
 from cisco_assessment.models.base import normalize_utc
 from cisco_assessment.models.enums import AssessmentRunStatus, PlatformFamily
 
-REPORT_SCHEMA_VERSION = "0.1"
+REPORT_SCHEMA_VERSION: Literal["0.1"] = "0.1"
 
 
 class ReportModel(BaseModel):
