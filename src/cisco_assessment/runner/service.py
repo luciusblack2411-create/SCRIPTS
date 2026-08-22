@@ -27,7 +27,7 @@ from cisco_assessment.models import (
     PlatformFamily,
 )
 from cisco_assessment.models.base import utc_now
-from cisco_assessment.parsers import BaseParser, ParseResult, ParseStatus, ParserRegistry
+from cisco_assessment.parsers import BaseParser, ParseResult, ParserRegistry, ParseStatus
 from cisco_assessment.reporting import AssessmentReportBuilder, ReportRenderer
 
 from .errors import AssessmentRunnerError, RunnerFailure, RunnerStage
