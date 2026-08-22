@@ -11,7 +11,13 @@ from pydantic import BaseModel
 from cisco_assessment.assessment import AssessmentResult
 from cisco_assessment.catalog import CommandId, CommandRequirement
 from cisco_assessment.collector import CommandCollectionResult, DeviceCollectionResult
-from cisco_assessment.models import AssessmentRun, CommandExecution, DeviceInfo, RawCommandOutput
+from cisco_assessment.models import (
+    AssessmentRun,
+    CommandExecution,
+    DeviceInfo,
+    HardwareInventory,
+    RawCommandOutput,
+)
 from cisco_assessment.parsers import ParseResult
 from cisco_assessment.reporting import AssessmentReport, RenderedReport
 
@@ -53,6 +59,7 @@ class AssessmentRunnerResult:
     report: AssessmentReport
     rendered_report: RenderedReport
     report_path: Path
+    hardware_inventory_parse_result: ParseResult[HardwareInventory] | None = None
 
     @property
     def parse_result(self) -> ParseResult[DeviceInfo]:
