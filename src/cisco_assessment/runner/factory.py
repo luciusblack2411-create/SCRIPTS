@@ -20,7 +20,7 @@ from cisco_assessment.parsers import ParserRegistry, build_parser_registry
 from cisco_assessment.raw import FilesystemRawRepository
 from cisco_assessment.reporting import AssessmentReportBuilder, JsonReportRenderer
 
-from .plan import AssessmentPlan, SHOW_VERSION_PLAN_V0_2
+from .plan import SHOW_VERSION_PLAN_V0_2, AssessmentPlan
 from .service import AssessmentRunner
 
 
