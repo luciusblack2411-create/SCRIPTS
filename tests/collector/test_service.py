@@ -59,6 +59,35 @@ class SuccessfulTransport:
         self.closed = True
 
 
+class PaginatedSuccessfulTransport:
+    def __init__(self) -> None:
+        self.first_page = b"show version\r\nCisco IOS XE\r\n--More--"
+        self.final_page = b"\r\nSystem image file is flash:packages.conf\r\nSW1#"
+        self._chunks = [b"SW1#", self.first_page]
+        self._continuation: bytes | None = self.final_page
+        self.sent: list[bytes] = []
+        self.closed = False
+
+    def connect(self, **kwargs: object) -> None:
+        del kwargs
+
+    def send(self, data: bytes) -> None:
+        self.sent.append(data)
+        if data == b" " and self._continuation is not None:
+            self._chunks.append(self._continuation)
+            self._continuation = None
+
+    def receive(self, max_bytes: int = 65535) -> bytes:
+        del max_bytes
+        return self._chunks.pop(0)
+
+    def receive_ready(self) -> bool:
+        return bool(self._chunks)
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def _collector(transport) -> DeviceCollector:
     policy = ReadOnlyPolicy()
     return DeviceCollector(
@@ -102,4 +131,25 @@ def test_device_catalog_to_show_version_end_to_end_with_fake_transport() -> None
     assert result.commands[0].execution.status is CommandExecutionStatus.SUCCESS
     assert result.commands[0].raw_output is not None
     assert transport.sent == [b"show version\n"]
+    assert transport.closed is True
+
+
+def test_paginated_show_version_finishes_as_success_with_full_raw() -> None:
+    transport = PaginatedSuccessfulTransport()
+    device = Device(management_address="192.0.2.10", platform_family=PlatformFamily.IOS_XE)
+
+    result = _collector(transport).collect(
+        assessment_run_id=uuid4(),
+        device=device,
+        credentials=SSHCredentials(username="assessment", password="secret"),
+        catalog=COMMAND_CATALOG_V0_1,
+    )
+
+    command_result = result.commands[0]
+    assert command_result.execution.status is CommandExecutionStatus.SUCCESS
+    assert command_result.raw_output is not None
+    assert command_result.raw_output.is_truncated is False
+    expected_raw = transport.first_page + transport.final_page
+    assert command_result.raw_output.content.encode(command_result.raw_output.encoding) == expected_raw
+    assert transport.sent == [b"show version\n", b" "]
     assert transport.closed is True
