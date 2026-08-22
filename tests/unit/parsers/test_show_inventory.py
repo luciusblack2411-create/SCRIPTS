@@ -284,15 +284,13 @@ def test_real_17_record_fixture_preserves_order_classification_and_explicit_pare
 
 def test_explicit_type_patterns_cover_stack_adapter_network_module_and_other() -> None:
     execution = _execution()
-    content = "\n".join(
-        (
-            'NAME: "Stack Adapter1/1", DESCR: "Cisco Stack Adapter"',
-            "PID: STACK-ADPT-1, VID: V01, SN: STACK0001",
-            'NAME: "Network Module 1", DESCR: "Cisco Network Module"',
-            "PID: C9300-NM-8X, VID: V01, SN: NM0001",
-            'NAME: "Mystery Widget/2", DESCR: "Unclassified hardware"',
-            "PID: UNKNOWN-PID, VID: V99, SN: UNKNOWN0001",
-        )
+    content = (
+        'NAME: "Stack Adapter1/1", DESCR: "Cisco Stack Adapter"\n'
+        "PID: STACK-ADPT-1, VID: V01, SN: STACK0001\n"
+        'NAME: "Network Module 1", DESCR: "Cisco Network Module"\n'
+        "PID: C9300-NM-8X, VID: V01, SN: NM0001\n"
+        'NAME: "Mystery Widget/2", DESCR: "Unclassified hardware"\n'
+        "PID: UNKNOWN-PID, VID: V99, SN: UNKNOWN0001"
     )
     raw = RawCommandOutput.from_text(command_execution_id=execution.id, content=content)
 
