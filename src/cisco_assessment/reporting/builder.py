@@ -8,7 +8,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
 from cisco_assessment.assessment.evidence import FindingEvidence, SourceTrace
 from cisco_assessment.assessment.models import AssessmentResult, Finding, RuleOutcome
-from cisco_assessment.models import AssessmentRun, DeviceInfo, HardwareComponent, HardwareInventory
+from cisco_assessment.models import AssessmentRun, DeviceInfo, HardwareInventory, HardwareInventoryRecord
 from cisco_assessment.models.base import utc_now
 
 from .errors import ReportBuildError
@@ -19,7 +19,7 @@ from .models import (
     DeviceInfoReport,
     EvidenceReport,
     FindingReport,
-    HardwareComponentReport,
+    HardwareInventoryRecordReport,
     HardwareInventoryReport,
     ReportMetadata,
     RuleOutcomeReport,
@@ -97,14 +97,9 @@ class AssessmentReportBuilder:
                     schema_version=hardware_inventory.schema_version,
                     vendor=hardware_inventory.vendor,
                     platform=hardware_inventory.platform,
-                    chassis=self._map_hardware_component(hardware_inventory.chassis),
-                    modules=tuple(
-                        self._map_hardware_component_required(item)
-                        for item in hardware_inventory.modules
-                    ),
-                    components=tuple(
-                        self._map_hardware_component_required(item)
-                        for item in hardware_inventory.components
+                    records=tuple(
+                        self._map_hardware_inventory_record(item)
+                        for item in hardware_inventory.records
                     ),
                 )
             ),
@@ -154,22 +149,19 @@ class AssessmentReportBuilder:
         ) + tuple(evidence for finding in result.findings for evidence in finding.evidence)
 
     @staticmethod
-    def _map_hardware_component(
-        component: HardwareComponent | None,
-    ) -> HardwareComponentReport | None:
-        if component is None:
-            return None
-        return AssessmentReportBuilder._map_hardware_component_required(component)
-
-    @staticmethod
-    def _map_hardware_component_required(component: HardwareComponent) -> HardwareComponentReport:
-        return HardwareComponentReport(
-            name=component.name,
-            description=component.description,
-            pid=component.pid,
-            vid=component.vid,
-            serial_number=component.serial_number,
-            kind=component.kind.value,
+    def _map_hardware_inventory_record(
+        record: HardwareInventoryRecord,
+    ) -> HardwareInventoryRecordReport:
+        return HardwareInventoryRecordReport(
+            ordinal=record.ordinal,
+            id=record.id,
+            name=record.name,
+            description=record.description,
+            pid=record.pid,
+            vid=record.vid,
+            serial_number=record.serial_number,
+            component_type=record.component_type,
+            parent_id=record.parent_id,
         )
 
     @staticmethod
