@@ -29,7 +29,12 @@ def _execution() -> CommandExecution:
     )
 
 
-def _raw(execution: CommandExecution, content: str, *, is_truncated: bool = False) -> RawCommandOutput:
+def _raw(
+    execution: CommandExecution,
+    content: str,
+    *,
+    is_truncated: bool = False,
+) -> RawCommandOutput:
     return RawCommandOutput.from_text(
         command_execution_id=execution.id,
         content=content,
