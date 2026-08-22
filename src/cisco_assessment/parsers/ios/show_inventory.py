@@ -18,7 +18,7 @@ from ..base import BaseParser
 from ..errors import UnrecognizedFormatError
 from ..models import FieldEvidence, ParsedPayload, ParserDescriptor, ParserWarning
 
-_NAME_RE = re.compile(r'^NAME:\s*"(?P<name>[^"]+)"\s*,\s*DESCR:\s*"(?P<descr>[^"]*)"\s*$')
+_NAME_RE = re.compile(r'^NAME:\s*"(?P<name>[^\"]+)"\s*,\s*DESCR:\s*"(?P<descr>[^\"]*)"\s*$')
 _PID_RE = re.compile(
     r"^PID:\s*(?P<pid>[^,]*?)\s*,\s*VID:\s*(?P<vid>[^,]*?)\s*,\s*SN:\s*(?P<sn>.*?)\s*$"
 )
@@ -367,77 +367,7 @@ class IOSShowInventoryParser(BaseParser[HardwareInventory]):
                     )
                 )
 
-        IOSShowInventoryParser._append_legacy_evidence(evidence, records)
         return evidence
-
-    @staticmethod
-    def _append_legacy_evidence(
-        evidence: list[FieldEvidence],
-        records: tuple[_Record, ...],
-    ) -> None:
-        first_member = next(
-            (
-                item
-                for item in records
-                if item.record.component_type is HardwareComponentType.CHASSIS_MEMBER
-            ),
-            None,
-        )
-        if first_member is not None:
-            evidence.extend(
-                (
-                    FieldEvidence(
-                        field="chassis",
-                        extractor="inventory_record",
-                        line_start=first_member.start_line,
-                        line_end=first_member.end_line,
-                    ),
-                    FieldEvidence(
-                        field="chassis.pid",
-                        extractor="pid_vid_sn",
-                        line_start=first_member.end_line,
-                        line_end=first_member.end_line,
-                    ),
-                    FieldEvidence(
-                        field="chassis.serial_number",
-                        extractor="pid_vid_sn",
-                        line_start=first_member.end_line,
-                        line_end=first_member.end_line,
-                    ),
-                )
-            )
-
-        modules = tuple(
-            item
-            for item in records
-            if item.record.component_type is HardwareComponentType.NETWORK_MODULE
-        )
-        if modules:
-            evidence.append(
-                FieldEvidence(
-                    field="modules",
-                    extractor="inventory_records",
-                    line_start=min(item.start_line for item in modules),
-                    line_end=max(item.end_line for item in modules),
-                )
-            )
-
-        first_member_id = None if first_member is None else first_member.record.id
-        components = tuple(
-            item
-            for item in records
-            if item.record.id != first_member_id
-            and item.record.component_type is not HardwareComponentType.NETWORK_MODULE
-        )
-        if components:
-            evidence.append(
-                FieldEvidence(
-                    field="components",
-                    extractor="inventory_records",
-                    line_start=min(item.start_line for item in components),
-                    line_end=max(item.end_line for item in components),
-                )
-            )
 
     @classmethod
     def _build_parsing_lines(cls, content: str) -> tuple[_ParsingLine, ...]:
