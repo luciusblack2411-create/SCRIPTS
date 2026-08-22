@@ -24,6 +24,7 @@ _FINDING_STATUSES = frozenset(
         AssessmentStatus.ERROR,
     }
 )
+_MISSING = object()
 
 
 class AssessmentEngine(Generic[NormalizedT]):
@@ -98,6 +99,34 @@ class AssessmentEngine(Generic[NormalizedT]):
                 reason_code="unsupported_platform",
             )
 
+        missing_fields = self._missing_required_fields(model, metadata.required_fields)
+        if missing_fields:
+            return RuleOutcome(
+                rule_id=metadata.rule_id,
+                rule_version=metadata.version,
+                title=metadata.title,
+                category=metadata.category,
+                normalized_model=metadata.normalized_model,
+                status=metadata.missing_data_status,
+                severity=metadata.severity,
+                message=(
+                    "Required normalized data is unavailable: "
+                    + ", ".join(missing_fields)
+                    + "."
+                ),
+                evidence=tuple(
+                    FindingEvidence(
+                        normalized_model=metadata.normalized_model,
+                        field_path=field_path,
+                        observed_value=None,
+                        sources=context.sources_for(metadata.normalized_model, field_path),
+                    )
+                    for field_path in missing_fields
+                ),
+                recommendation=metadata.recommendation,
+                reason_code="missing_required_data",
+            )
+
         try:
             decision = rule.evaluate(model, context)
         except Exception as exc:  # noqa: BLE001 - engine must isolate arbitrary rule failures.
@@ -134,8 +163,31 @@ class AssessmentEngine(Generic[NormalizedT]):
             severity=metadata.severity,
             message=decision.message,
             evidence=evidence,
-            recommendation=decision.recommendation,
+            recommendation=decision.recommendation or metadata.recommendation,
         )
+
+    @staticmethod
+    def _missing_required_fields(
+        model: BaseModel,
+        field_paths: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        missing: list[str] = []
+        for field_path in field_paths:
+            value: object = model
+            for part in field_path.split("."):
+                if isinstance(value, BaseModel):
+                    if part not in type(value).model_fields:
+                        value = _MISSING
+                        break
+                    value = getattr(value, part)
+                elif isinstance(value, dict):
+                    value = value.get(part, _MISSING)
+                else:
+                    value = _MISSING
+                    break
+            if value is _MISSING or value is None:
+                missing.append(field_path)
+        return tuple(missing)
 
     @staticmethod
     def _resolve_evidence(
