@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from cisco_assessment.collector import DeviceCollectionResult
+    from cisco_assessment.models import AssessmentRun
 
 
 class RunnerStage(StrEnum):
@@ -36,3 +41,21 @@ class RunnerFailure:
                 str(self.command_execution_id) if self.command_execution_id is not None else None
             ),
         }
+
+
+class AssessmentRunnerError(RuntimeError):
+    """Terminal runner failure retaining lifecycle and collection evidence."""
+
+    def __init__(
+        self,
+        *,
+        run: AssessmentRun,
+        failure: RunnerFailure,
+        collection: DeviceCollectionResult | None = None,
+    ) -> None:
+        self.run = run
+        self.failure = failure
+        self.collection = collection
+        super().__init__(
+            f"{failure.stage.value}: {failure.error_type}: {failure.message}"
+        )
