@@ -12,7 +12,6 @@ from pydantic import BaseModel
 from cisco_assessment.catalog.enums import CommandId, NormalizedModelId, ParserId
 from cisco_assessment.models.enums import PlatformFamily
 
-
 NormalizedT = TypeVar("NormalizedT", bound=BaseModel)
 
 

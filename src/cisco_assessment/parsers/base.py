@@ -19,14 +19,13 @@ from .errors import (
     UnsupportedPlatformError,
 )
 from .models import (
-    ParseResult,
-    ParseStatus,
-    ParseTrace,
     ParsedPayload,
     ParserDescriptor,
+    ParseResult,
     ParserWarning,
+    ParseStatus,
+    ParseTrace,
 )
-
 
 NormalizedT = TypeVar("NormalizedT", bound=BaseModel)
 

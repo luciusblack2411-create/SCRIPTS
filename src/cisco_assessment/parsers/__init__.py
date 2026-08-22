@@ -15,12 +15,12 @@ from .errors import (
 from .ios import IOSShowVersionParser
 from .models import (
     FieldEvidence,
-    ParseResult,
-    ParseStatus,
-    ParseTrace,
     ParsedPayload,
     ParserDescriptor,
+    ParseResult,
     ParserWarning,
+    ParseStatus,
+    ParseTrace,
 )
 from .registry import ParserRegistry
 
