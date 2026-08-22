@@ -24,34 +24,33 @@ jobs:
       - name: Install project test dependencies
         run: python -m pip install -e '.[dev]'
 
-      - name: Install Genie and parser framework cores without ecosystems
-        run: >-
-          python -m pip install --no-deps
-          'genie==26.6'
-          'genie.libs.parser==26.6'
-          'pyats==26.6'
-          'pyats.log==26.6'
-          'pyats.utils==26.6'
-          'pyats.easypy==26.6'
-          'pyats.datastructures==26.6'
-          'pyats.results==26.6'
-          'unicon==26.6'
-          'unicon.plugins==26.6'
+      - name: Snapshot pre-Genie environment
+        shell: bash
+        run: |
+          python -m pip freeze | sort > /tmp/pip-before-genie.txt
+          SITE_PACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')"
+          du -sk "$SITE_PACKAGES" | awk '{print $1}' > /tmp/site-packages-before-kib.txt
 
-      - name: Install observed non-framework parser imports
-        run: >-
-          python -m pip install
-          'dill>=0.3,<1'
-          'distro>=1.8,<2'
-          'psutil>=5.9,<8'
-          'requests>=2.31,<3'
-          'PyYAML>=6,<7'
-          'PrettyTable>=3,<4'
-          'xmltodict>=0.13,<1'
-          'packaging>=24,<26'
+      - name: Install officially resolved Genie dependency closure
+        run: python -m pip install -r requirements/spikes/genie-interfaces-status.txt
 
-      - name: Characterize installed distributions
-        run: python -m pip freeze | sort
+      - name: Verify dependency closure
+        run: python -m pip check
+
+      - name: Characterize installed dependency footprint
+        shell: bash
+        run: |
+          python -m pip freeze | sort | tee /tmp/pip-after-genie.txt
+          SITE_PACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')"
+          BEFORE_KIB="$(cat /tmp/site-packages-before-kib.txt)"
+          AFTER_KIB="$(du -sk "$SITE_PACKAGES" | awk '{print $1}')"
+          DELTA_KIB="$((AFTER_KIB - BEFORE_KIB))"
+          echo "site_packages_before_kib=${BEFORE_KIB}"
+          echo "site_packages_after_kib=${AFTER_KIB}"
+          echo "site_packages_delta_kib=${DELTA_KIB}"
+          echo "new_or_changed_freeze_entries=$(comm -13 /tmp/pip-before-genie.txt /tmp/pip-after-genie.txt | wc -l)"
+          echo "--- new/changed distributions after Genie install ---"
+          comm -13 /tmp/pip-before-genie.txt /tmp/pip-after-genie.txt
 
       - name: Import exact Genie parser path
         run: >-
@@ -62,8 +61,11 @@ jobs:
       - name: Run Genie spike tests
         run: pytest -q -ra spikes/test_genie_interfaces_status.py
 
-      - name: Lint spike code
-        run: ruff check src/cisco_assessment/models/interface.py src/cisco_assessment/parsers/ios/show_interfaces_status.py spikes/test_genie_interfaces_status.py
+      - name: Run normal framework tests
+        run: pytest -q -ra tests
 
-      - name: Type check framework
+      - name: Ruff
+        run: ruff check src tests spikes
+
+      - name: Mypy
         run: mypy src/cisco_assessment
