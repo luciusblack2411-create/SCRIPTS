@@ -9,6 +9,8 @@ from .plan import (
     SHOW_VERSION_PLAN_V0_2,
     AssessmentPlan,
     AssessmentPlanItem,
+    ProductiveAssessmentPlanId,
+    resolve_productive_assessment_plan,
 )
 from .service import AssessmentRunner
 
@@ -22,8 +24,10 @@ __all__ = [
     "AssessmentRunnerError",
     "AssessmentRunnerResult",
     "HardwareInventoryAssessmentRunner",
+    "ProductiveAssessmentPlanId",
     "RunnerFailure",
     "RunnerStage",
     "build_default_runner",
     "build_runner",
+    "resolve_productive_assessment_plan",
 ]
