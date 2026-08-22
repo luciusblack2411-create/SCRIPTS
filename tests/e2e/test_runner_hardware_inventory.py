@@ -109,11 +109,24 @@ def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_
     rule_ids = {outcome.rule_id for outcome in result.assessment_result.outcomes}
     assert {"HW-001", "HW-002", "HW-003"}.issubset(rule_ids)
     assert result.report.hardware_inventory is not None
-    assert result.report.hardware_inventory.chassis is not None
-    assert result.report.hardware_inventory.chassis.serial_number == "FOC0000AAAA"
+    assert len(result.report.hardware_inventory.records) == 17
+    switch_1 = next(
+        record for record in result.report.hardware_inventory.records if record.name == "Switch 1"
+    )
+    assert switch_1.serial_number == "FOC0000AAAA"
 
     payload = json.loads(result.rendered_report.content)
-    assert payload["hardware_inventory"]["chassis"]["pid"] == "C9300-48P"
+    hardware_payload = payload["hardware_inventory"]
+    assert "records" in hardware_payload
+    assert "chassis" not in hardware_payload
+    assert "modules" not in hardware_payload
+    assert "components" not in hardware_payload
+    payload_switch_1 = next(
+        record for record in hardware_payload["records"] if record["name"] == "Switch 1"
+    )
+    assert payload_switch_1["pid"] == "C9300-48P"
+    assert payload_switch_1["serial_number"] == "FOC0000AAAA"
+
     hw001 = next(item for item in payload["outcomes"] if item["rule"]["rule_id"] == "HW-001")
     serial_evidence = next(
         item for item in hw001["evidence"] if item["field_path"] == "chassis.serial_number"
@@ -173,3 +186,13 @@ def test_hardware_inventory_plan_completes_with_pager_artifacts_in_preserved_raw
     )
     assert hardware_parse.trace.raw_output_id == inventory_raw.id
     assert hardware_parse.trace.raw_sha256 == inventory_raw.sha256
+
+    assert result.report.hardware_inventory is not None
+    assert len(result.report.hardware_inventory.records) == 17
+    reported_target = next(
+        record
+        for record in result.report.hardware_inventory.records
+        if record.name == "Gi2/1/2"
+    )
+    assert reported_target.pid == "GLC-SX-MMD"
+    assert reported_target.vid == "V03"
