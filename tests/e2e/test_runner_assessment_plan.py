@@ -12,7 +12,12 @@ from cisco_assessment.catalog import (
     ParserId,
 )
 from cisco_assessment.collector.transport import SSHCredentials
-from cisco_assessment.models import AssessmentRunStatus, CommandExecutionStatus, Device, PlatformFamily
+from cisco_assessment.models import (
+    AssessmentRunStatus,
+    CommandExecutionStatus,
+    Device,
+    PlatformFamily,
+)
 from cisco_assessment.parsers import (
     BaseParser,
     FieldEvidence,
