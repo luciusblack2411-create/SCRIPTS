@@ -13,6 +13,22 @@ from cisco_assessment.runner import AssessmentRunnerError, build_default_runner
 
 app = typer.Typer(help="Cisco Switch Assessment Framework")
 
+_KEY_FILE_OPTION = typer.Option(
+    None,
+    "--key-file",
+    exists=True,
+    file_okay=True,
+    dir_okay=False,
+    readable=True,
+    help="SSH private-key file. When supplied, no password prompt is shown.",
+)
+_OUTPUT_DIR_OPTION = typer.Option(
+    Path("assessment-output"),
+    "--output-dir",
+    file_okay=False,
+    help="Directory where RAW evidence and the JSON report are persisted.",
+)
+
 
 def _parse_platform(value: str) -> PlatformFamily:
     normalized = value.strip().lower().replace("-", "_")
@@ -49,26 +65,13 @@ def assess(
         help="Target platform: ios or ios_xe.",
     ),
     port: int = typer.Option(22, "--port", min=1, max=65535, help="SSH port."),
-    key_file: Path | None = typer.Option(
-        None,
-        "--key-file",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        help="SSH private-key file. When supplied, no password prompt is shown.",
-    ),
+    key_file: Path | None = _KEY_FILE_OPTION,
     use_agent: bool = typer.Option(
         False,
         "--use-agent",
         help="Use SSH agent/default keys instead of prompting for a password.",
     ),
-    output_dir: Path = typer.Option(
-        Path("assessment-output"),
-        "--output-dir",
-        file_okay=False,
-        help="Directory where RAW evidence and the JSON report are persisted.",
-    ),
+    output_dir: Path = _OUTPUT_DIR_OPTION,
     accept_unknown_host_key: bool = typer.Option(
         False,
         "--accept-unknown-host-key",
