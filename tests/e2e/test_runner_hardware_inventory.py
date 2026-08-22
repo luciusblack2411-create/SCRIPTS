@@ -109,11 +109,24 @@ def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_
     rule_ids = {outcome.rule_id for outcome in result.assessment_result.outcomes}
     assert {"HW-001", "HW-002", "HW-003"}.issubset(rule_ids)
     assert result.report.hardware_inventory is not None
-    assert result.report.hardware_inventory.chassis is not None
-    assert result.report.hardware_inventory.chassis.serial_number == "FOC0000AAAA"
+    reported_records = result.report.hardware_inventory.records
+    parsed_records = hardware_parse.data.records
+    assert len(reported_records) == len(parsed_records)
+    assert [record.id for record in reported_records] == [record.id for record in parsed_records]
+    assert [record.name for record in reported_records] == [record.name for record in parsed_records]
+    assert [record.pid for record in reported_records] == [record.pid for record in parsed_records]
 
     payload = json.loads(result.rendered_report.content)
-    assert payload["hardware_inventory"]["chassis"]["pid"] == "C9300-48P"
+    hardware_payload = payload["hardware_inventory"]
+    assert "records" in hardware_payload
+    assert "chassis" not in hardware_payload
+    assert "modules" not in hardware_payload
+    assert "components" not in hardware_payload
+    assert [record["id"] for record in hardware_payload["records"]] == [
+        record.id for record in parsed_records
+    ]
+    assert hardware_payload["records"][0]["pid"] == parsed_records[0].pid
+
     hw001 = next(item for item in payload["outcomes"] if item["rule"]["rule_id"] == "HW-001")
     serial_evidence = next(
         item for item in hw001["evidence"] if item["field_path"] == "chassis.serial_number"
@@ -153,14 +166,8 @@ def test_hardware_inventory_plan_completes_with_pager_artifacts_in_preserved_raw
     hardware_parse = result.hardware_inventory_parse_result
     assert hardware_parse is not None
     assert hardware_parse.status is ParseStatus.SUCCESS
-    assert hardware_parse.data.chassis is not None
-    components = (
-        (hardware_parse.data.chassis,)
-        + hardware_parse.data.modules
-        + hardware_parse.data.components
-    )
-    assert len(components) == 17
-    target = next(component for component in components if component.name == "Gi2/1/2")
+    assert len(hardware_parse.data.records) == 17
+    target = next(record for record in hardware_parse.data.records if record.name == "Gi2/1/2")
     assert target.pid == "GLC-SX-MMD"
     assert target.vid == "V03"
     assert all(
@@ -173,3 +180,13 @@ def test_hardware_inventory_plan_completes_with_pager_artifacts_in_preserved_raw
     )
     assert hardware_parse.trace.raw_output_id == inventory_raw.id
     assert hardware_parse.trace.raw_sha256 == inventory_raw.sha256
+
+    assert result.report.hardware_inventory is not None
+    assert len(result.report.hardware_inventory.records) == 17
+    reported_target = next(
+        record
+        for record in result.report.hardware_inventory.records
+        if record.name == "Gi2/1/2"
+    )
+    assert reported_target.pid == "GLC-SX-MMD"
+    assert reported_target.vid == "V03"

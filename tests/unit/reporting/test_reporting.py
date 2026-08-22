@@ -13,7 +13,15 @@ from cisco_assessment.assessment import (
     RuleOutcome,
     SourceTrace,
 )
-from cisco_assessment.models import AssessmentRun, AssessmentRunStatus, DeviceInfo, DeviceSnapshot
+from cisco_assessment.models import (
+    AssessmentRun,
+    AssessmentRunStatus,
+    DeviceInfo,
+    DeviceSnapshot,
+    HardwareComponentType,
+    HardwareInventory,
+    HardwareInventoryRecord,
+)
 from cisco_assessment.models.enums import PlatformFamily
 from cisco_assessment.reporting import (
     AssessmentReportBuilder,
@@ -26,6 +34,9 @@ DEVICE_ID = UUID("22222222-2222-2222-2222-222222222222")
 COMMAND_EXECUTION_ID = UUID("33333333-3333-3333-3333-333333333333")
 RAW_OUTPUT_ID = UUID("44444444-4444-4444-4444-444444444444")
 FINDING_ID = UUID("55555555-5555-5555-5555-555555555555")
+HARDWARE_COMMAND_EXECUTION_ID = UUID("66666666-6666-6666-6666-666666666666")
+HARDWARE_RAW_OUTPUT_ID = UUID("77777777-7777-7777-7777-777777777777")
+HARDWARE_FINDING_ID = UUID("88888888-8888-8888-8888-888888888888")
 GENERATED_AT = datetime(2026, 8, 22, 0, 50, tzinfo=UTC)
 
 
@@ -121,6 +132,52 @@ def _inputs() -> tuple[AssessmentRun, AssessmentResult, DeviceInfo]:
     return run, result, device_info
 
 
+def _hardware_inventory() -> HardwareInventory:
+    return HardwareInventory(
+        platform=PlatformFamily.IOS_XE,
+        records=(
+            HardwareInventoryRecord(
+                ordinal=1,
+                name="Switch 1",
+                description="Cisco Catalyst 9300 48 Port PoE+ Switch",
+                pid="C9300-48P",
+                vid="V02",
+                serial_number="FOC0000AAAA",
+                component_type=HardwareComponentType.CHASSIS_MEMBER,
+            ),
+            HardwareInventoryRecord(
+                ordinal=2,
+                name="Gi1/1/1",
+                description="1000BaseSX SFP",
+                pid="GLC-SX-MMD",
+                vid="V03",
+                serial_number="FNS0000A201",
+                component_type=HardwareComponentType.TRANSCEIVER,
+                parent_id="hw:0001",
+            ),
+            HardwareInventoryRecord(
+                ordinal=3,
+                name="Switch 2",
+                description="Cisco Catalyst 9300 48 Port PoE+ Switch",
+                pid="C9300-48P",
+                vid="V02",
+                serial_number="FOC0000BBBB",
+                component_type=HardwareComponentType.CHASSIS_MEMBER,
+            ),
+            HardwareInventoryRecord(
+                ordinal=4,
+                name="Fan Tray",
+                description="Cisco Catalyst 9300 Fan Module",
+                pid="C9300-FAN",
+                vid="V01",
+                serial_number="FOC0000A120",
+                component_type=HardwareComponentType.FAN,
+                parent_id=None,
+            ),
+        ),
+    )
+
+
 def test_builder_preserves_run_device_rule_normalized_and_raw_traceability() -> None:
     run, result, device_info = _inputs()
 
@@ -188,6 +245,136 @@ def test_json_renderer_serializes_canonical_report_without_domain_lookups() -> N
     assert payload["findings"][0]["evidence"][0]["sources"][0][
         "command_execution_id"
     ] == str(COMMAND_EXECUTION_ID)
+
+
+def test_hardware_inventory_report_exposes_only_canonical_v0_2_records() -> None:
+    run, result, device_info = _inputs()
+    inventory = _hardware_inventory()
+
+    report = AssessmentReportBuilder().build(
+        run=run,
+        result=result,
+        device_info=device_info,
+        hardware_inventory=inventory,
+        generated_at=GENERATED_AT,
+    )
+
+    assert report.hardware_inventory is not None
+    assert report.hardware_inventory.schema_version == "0.2"
+    records = report.hardware_inventory.records
+    assert [record.ordinal for record in records] == [1, 2, 3, 4]
+    assert [record.id for record in records] == ["hw:0001", "hw:0002", "hw:0003", "hw:0004"]
+    assert records[1].name == "Gi1/1/1"
+    assert records[1].description == "1000BaseSX SFP"
+    assert records[1].pid == "GLC-SX-MMD"
+    assert records[1].vid == "V03"
+    assert records[1].serial_number == "FNS0000A201"
+    assert records[1].component_type is HardwareComponentType.TRANSCEIVER
+    assert records[1].parent_id == "hw:0001"
+    assert records[3].component_type is HardwareComponentType.FAN
+    assert records[3].parent_id is None
+
+    payload = json.loads(JsonReportRenderer().render(report).content)
+    hardware_payload = payload["hardware_inventory"]
+    assert set(hardware_payload) == {
+        "normalized_model",
+        "platform",
+        "records",
+        "schema_version",
+        "vendor",
+    }
+    assert "chassis" not in hardware_payload
+    assert "modules" not in hardware_payload
+    assert "components" not in hardware_payload
+    assert hardware_payload["records"][1] == {
+        "component_type": "transceiver",
+        "description": "1000BaseSX SFP",
+        "id": "hw:0002",
+        "name": "Gi1/1/1",
+        "ordinal": 2,
+        "parent_id": "hw:0001",
+        "pid": "GLC-SX-MMD",
+        "serial_number": "FNS0000A201",
+        "vid": "V03",
+    }
+
+
+def test_hardware_inventory_record_field_path_traceability_is_preserved() -> None:
+    run, result, device_info = _inputs()
+    hardware_source = SourceTrace(
+        assessment_run_id=RUN_ID,
+        command_execution_id=HARDWARE_COMMAND_EXECUTION_ID,
+        raw_output_id=HARDWARE_RAW_OUTPUT_ID,
+        raw_sha256="b" * 64,
+        parser_id="ios.show_inventory.v1",
+        parser_version="0.2.0",
+        platform=PlatformFamily.IOS_XE,
+        extractor="pid_vid_sn",
+        line_start=20,
+        line_end=20,
+    )
+    hardware_evidence = FindingEvidence(
+        normalized_model="HardwareInventory",
+        field_path="records[1].pid",
+        observed_value="GLC-SX-MMD",
+        sources=(hardware_source,),
+    )
+    hardware_outcome = RuleOutcome(
+        rule_id="HW-TRACE-001",
+        rule_version="0.2.0",
+        title="Hardware record trace",
+        category="hardware",
+        normalized_model="HardwareInventory",
+        status=AssessmentStatus.INFO,
+        severity=FindingSeverity.INFO,
+        message="Hardware record evidence is traceable.",
+        evidence=(hardware_evidence,),
+    )
+    hardware_finding = Finding(
+        finding_id=HARDWARE_FINDING_ID,
+        rule_id="HW-TRACE-001",
+        rule_version="0.2.0",
+        title="Hardware record trace",
+        description="Synthetic reporting regression for HardwareInventory v0.2 field paths.",
+        category="hardware",
+        normalized_model="HardwareInventory",
+        status=AssessmentStatus.INFO,
+        severity=FindingSeverity.INFO,
+        evidence=(hardware_evidence,),
+    )
+    merged_result = result.model_copy(
+        update={
+            "outcomes": result.outcomes + (hardware_outcome,),
+            "findings": result.findings + (hardware_finding,),
+        }
+    )
+
+    report = AssessmentReportBuilder().build(
+        run=run,
+        result=merged_result,
+        device_info=device_info,
+        hardware_inventory=_hardware_inventory(),
+        generated_at=GENERATED_AT,
+    )
+
+    finding = next(item for item in report.findings if item.rule.rule_id == "HW-TRACE-001")
+    evidence = finding.evidence[0]
+    assert evidence.normalized_model == "HardwareInventory"
+    assert evidence.field_path == "records[1].pid"
+    assert evidence.observed_value == "GLC-SX-MMD"
+    assert evidence.sources[0].command_execution_id == HARDWARE_COMMAND_EXECUTION_ID
+    assert evidence.sources[0].raw_output_id == HARDWARE_RAW_OUTPUT_ID
+    assert evidence.sources[0].raw_sha256 == "b" * 64
+    assert evidence.sources[0].parser_id == "ios.show_inventory.v1"
+    assert evidence.sources[0].parser_version == "0.2.0"
+    assert evidence.sources[0].line_start == 20
+    assert evidence.sources[0].line_end == 20
+
+    payload = json.loads(JsonReportRenderer().render(report).content)
+    payload_finding = next(
+        item for item in payload["findings"] if item["rule"]["rule_id"] == "HW-TRACE-001"
+    )
+    assert payload_finding["evidence"][0]["field_path"] == "records[1].pid"
 
 
 def test_builder_rejects_cross_run_result() -> None:
