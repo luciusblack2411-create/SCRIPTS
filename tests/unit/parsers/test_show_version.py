@@ -7,13 +7,13 @@ from cisco_assessment.catalog.enums import CommandId, ParserId
 from cisco_assessment.models import CommandExecution, RawCommandOutput
 from cisco_assessment.models.enums import PlatformFamily
 from cisco_assessment.parsers import (
-    build_parser_registry,
     EmptyRawOutputError,
     IOSShowVersionParser,
     ParseStatus,
     TraceabilityMismatchError,
     UnrecognizedFormatError,
     UnsupportedPlatformError,
+    build_parser_registry,
 )
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "ios" / "show_version"
