@@ -1,13 +1,13 @@
 # Genie interface-status spike only.
 #
-# The workflow installs genie and genie.libs.parser with --no-deps so the
-# top-level Genie distribution does not pull clean/conf/ops/sdk/etc.
-# The remaining packages are the imports exercised by ShowInterfacesStatus
-# and genie.libs.parser.utils.common.
+# The workflow installs genie, genie.libs.parser, and pyats with --no-deps so
+# the top-level distributions do not pull the complete Genie/pyATS ecosystems.
+# The remaining packages are the imports exercised by ShowInterfacesStatus and
+# genie.libs.parser.utils.common.
 genie==26.6
 genie.libs.parser==26.6
+pyats==26.6
 pyats.log==26.6
-pyats.configuration==26.6
 pyats.utils==26.6
 xmltodict>=0.13,<1
 packaging>=24,<26
