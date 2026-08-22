@@ -1,13 +1,7 @@
 # Genie interface-status spike only.
 #
-# The workflow installs genie, genie.libs.parser, and pyats with --no-deps so
-# the top-level distributions do not pull the complete Genie/pyATS ecosystems.
-# The remaining packages are the imports exercised by ShowInterfacesStatus and
-# genie.libs.parser.utils.common.
+# Use the smallest single top-level Cisco distribution that provides the Genie
+# core plus the parser library through normal dependency resolution. Do not use
+# --no-deps here: this spike intentionally measures the officially resolvable
+# dependency footprint before attempting later optimization/isolation.
 genie==26.6
-genie.libs.parser==26.6
-pyats==26.6
-pyats.log==26.6
-pyats.utils==26.6
-xmltodict>=0.13,<1
-packaging>=24,<26
