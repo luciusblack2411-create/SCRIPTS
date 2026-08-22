@@ -18,7 +18,7 @@ from ..base import BaseParser
 from ..errors import UnrecognizedFormatError
 from ..models import FieldEvidence, ParsedPayload, ParserDescriptor, ParserWarning
 
-_NAME_RE = re.compile(r'^NAME:\s*"(?P<name>[^\"]+)"\s*,\s*DESCR:\s*"(?P<descr>[^\"]*)"\s*$')
+_NAME_RE = re.compile(r'^NAME:\s*"(?P<name>[^"]+)"\s*,\s*DESCR:\s*"(?P<descr>[^"]*)"\s*$')
 _PID_RE = re.compile(
     r"^PID:\s*(?P<pid>[^,]*?)\s*,\s*VID:\s*(?P<vid>[^,]*?)\s*,\s*SN:\s*(?P<sn>.*?)\s*$"
 )
