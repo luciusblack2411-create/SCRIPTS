@@ -176,7 +176,9 @@ class IOSShowInterfacesStatusParser(BaseParser[InterfaceObservation]):
                 from genie.libs.parser.iosxe.show_interface import (  # type: ignore[import-not-found,import-untyped]
                     ShowInterfacesStatus as GenieShowInterfacesStatus,
                 )
-            from genie.libs.parser.utils.common import Common  # type: ignore[import-not-found,import-untyped]
+            from genie.libs.parser.utils.common import (
+                Common,  # type: ignore[import-not-found,import-untyped]
+            )
         except ImportError as exc:
             raise UnrecognizedFormatError(
                 "Genie spike dependencies are not installed; install the isolated spike requirements"
