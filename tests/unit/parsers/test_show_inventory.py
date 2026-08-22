@@ -9,6 +9,14 @@ from cisco_assessment.parsers import IOSShowInventoryParser, ParseStatus, build_
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "ios" / "show_inventory"
 
+_LEGACY_EVIDENCE_FIELDS = {
+    "chassis",
+    "chassis.pid",
+    "chassis.serial_number",
+    "modules",
+    "components",
+}
+
 _EXPECTED_17 = (
     (
         "Switch 1",
@@ -206,8 +214,10 @@ def test_parse_show_inventory_produces_canonical_v0_2_records() -> None:
     assert result.trace.command_execution_id == execution.id
     assert result.trace.raw_output_id == raw.id
     assert result.trace.raw_sha256 == raw.sha256
-    assert any(item.field == "records[0].serial_number" for item in result.evidence)
-    assert any(item.field == "chassis.serial_number" for item in result.evidence)
+    evidence_fields = {item.field for item in result.evidence}
+    assert "records[0].serial_number" in evidence_fields
+    assert evidence_fields.isdisjoint(_LEGACY_EVIDENCE_FIELDS)
+    assert all(field == "records" or field.startswith("records[") for field in evidence_fields)
     assert raw.content == content
 
 
@@ -257,6 +267,26 @@ def test_real_17_record_fixture_preserves_order_classification_and_explicit_pare
     assert target.vid == "V03"
     assert target.parent_id == "hw:0011"
     assert all(warning.code != "inventory_record_incomplete" for warning in result.warnings)
+
+    evidence_fields = {item.field for item in result.evidence}
+    expected_evidence_fields = {"records"}
+    for index, record in enumerate(result.data.records):
+        prefix = f"records[{index}]"
+        expected_evidence_fields.update(
+            {
+                prefix,
+                f"{prefix}.name",
+                f"{prefix}.description",
+                f"{prefix}.pid",
+                f"{prefix}.vid",
+                f"{prefix}.serial_number",
+                f"{prefix}.component_type",
+            }
+        )
+        if record.parent_id is not None:
+            expected_evidence_fields.add(f"{prefix}.parent_id")
+    assert evidence_fields == expected_evidence_fields
+    assert evidence_fields.isdisjoint(_LEGACY_EVIDENCE_FIELDS)
 
     raw_lines = content.replace("\r\n", "\n").split("\n")
     pager_line_number = next(

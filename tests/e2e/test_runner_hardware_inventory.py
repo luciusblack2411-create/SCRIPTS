@@ -20,6 +20,13 @@ _VERSION = _FIXTURES / "show_version" / "c9300_iosxe.txt"
 _INVENTORY = _FIXTURES / "show_inventory" / "c9300_iosxe.txt"
 _INVENTORY_PAGER = _FIXTURES / "show_inventory" / "c9300_iosxe_pager_backspace.txt"
 _PROMPT = b"SW-CORE-01#"
+_LEGACY_HARDWARE_EVIDENCE_FIELDS = {
+    "chassis",
+    "chassis.pid",
+    "chassis.serial_number",
+    "modules",
+    "components",
+}
 
 
 class HardwareInventoryTransport:
@@ -104,9 +111,26 @@ def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_
     assert hardware_parse.trace.raw_output_id == inventory_raw.id
     assert hardware_parse.trace.raw_sha256 == inventory_raw.sha256
     assert hardware_parse.data.records[0].pid == "C9300-48P"
+    parse_evidence_fields = {item.field for item in hardware_parse.evidence}
+    assert parse_evidence_fields.isdisjoint(_LEGACY_HARDWARE_EVIDENCE_FIELDS)
+    assert all(
+        field == "records" or field.startswith("records[")
+        for field in parse_evidence_fields
+    )
 
     rule_ids = {outcome.rule_id for outcome in result.assessment_result.outcomes}
     assert {"HW-001", "HW-002", "HW-003"}.issubset(rule_ids)
+    hardware_outcomes = tuple(
+        outcome
+        for outcome in result.assessment_result.outcomes
+        if outcome.rule_id in {"HW-001", "HW-002", "HW-003"}
+    )
+    assert all(
+        evidence.field_path == "records" or evidence.field_path.startswith("records[")
+        for outcome in hardware_outcomes
+        for evidence in outcome.evidence
+    )
+
     assert result.report.hardware_inventory is not None
     reported_records = result.report.hardware_inventory.records
     parsed_records = hardware_parse.data.records
@@ -181,6 +205,12 @@ def test_hardware_inventory_plan_completes_with_pager_artifacts_in_preserved_raw
     )
     assert hardware_parse.trace.raw_output_id == inventory_raw.id
     assert hardware_parse.trace.raw_sha256 == inventory_raw.sha256
+    parse_evidence_fields = {item.field for item in hardware_parse.evidence}
+    assert parse_evidence_fields.isdisjoint(_LEGACY_HARDWARE_EVIDENCE_FIELDS)
+    assert all(
+        field == "records" or field.startswith("records[")
+        for field in parse_evidence_fields
+    )
 
     assert result.report.hardware_inventory is not None
     assert len(result.report.hardware_inventory.records) == 17
