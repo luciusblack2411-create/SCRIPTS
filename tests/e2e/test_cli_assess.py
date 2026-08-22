@@ -190,7 +190,7 @@ def test_assess_cli_help_exposes_supported_plans_and_no_free_command_option() ->
     result = runner.invoke(cli.app, ["assess", "--help"])
 
     assert result.exit_code == 0, result.output
-    help_output = _ANSI_ESCAPE_RE.sub("", result.output)
+    help_output = " ".join(_ANSI_ESCAPE_RE.sub("", result.output).split())
     assert "--password" not in help_output
     assert "--key-file" in help_output
     assert "--use-agent" in help_output
