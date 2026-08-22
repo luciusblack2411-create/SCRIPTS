@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import socket
 import sys
 from types import SimpleNamespace
 
@@ -87,7 +86,7 @@ def test_paramiko_transport_uses_device_and_ephemeral_credentials(monkeypatch) -
     ("error", "expected"),
     [
         (FakeAuthenticationException("no"), AuthenticationError),
-        (socket.timeout("late"), ConnectionTimeoutError),
+        (TimeoutError("late"), ConnectionTimeoutError),
     ],
 )
 def test_paramiko_transport_maps_connection_errors(monkeypatch, error, expected) -> None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import socket
 from types import ModuleType
 from typing import Any
 
@@ -64,7 +63,7 @@ class ParamikoSSHTransport:
             raise AuthenticationError(
                 f"SSH authentication failed for device {device.id}"
             ) from exc
-        except (socket.timeout, TimeoutError) as exc:
+        except TimeoutError as exc:
             client.close()
             raise ConnectionTimeoutError(
                 f"SSH connection timed out for device {device.id}"
@@ -89,7 +88,7 @@ class ParamikoSSHTransport:
             raise ConnectionLostError("SSH channel is not open")
         try:
             data: bytes = self._channel.recv(max_bytes)
-        except socket.timeout:
+        except TimeoutError:
             return b""
         except OSError as exc:
             raise ConnectionLostError("SSH channel receive failed") from exc
