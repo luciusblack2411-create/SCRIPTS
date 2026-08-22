@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 from cisco_assessment.assessment import AssessmentEngine, AssessmentResult, AssessmentStatus
-from cisco_assessment.catalog import CommandId
+from cisco_assessment.catalog import CommandCatalog, CommandId
+from cisco_assessment.collector import DeviceCollector
 from cisco_assessment.collector.transport import SSHCredentials
-from cisco_assessment.models import AssessmentRunStatus, Device, HardwareInventory
-from cisco_assessment.parsers import ParseResult
+from cisco_assessment.models import AssessmentRunStatus, Device, DeviceInfo, HardwareInventory
+from cisco_assessment.parsers import ParseResult, ParserRegistry
+from cisco_assessment.reporting import AssessmentReportBuilder, ReportRenderer
 
 from .models import AssessmentRunnerResult
 from .plan import AssessmentPlan
@@ -25,10 +28,30 @@ class HardwareInventoryAssessmentRunner(AssessmentRunner):
     def __init__(
         self,
         *,
+        framework_version: str,
+        collector: DeviceCollector,
+        parser_registry: ParserRegistry,
+        command_catalog: CommandCatalog,
+        assessment_engine: AssessmentEngine[DeviceInfo],
         hardware_inventory_engine: AssessmentEngine[HardwareInventory],
-        **kwargs: object,
+        report_builder: AssessmentReportBuilder,
+        report_renderer: ReportRenderer,
+        report_root: Path,
+        ruleset_version: str,
+        default_plan: AssessmentPlan,
     ) -> None:
-        super().__init__(**kwargs)  # type: ignore[arg-type]
+        super().__init__(
+            framework_version=framework_version,
+            collector=collector,
+            parser_registry=parser_registry,
+            command_catalog=command_catalog,
+            assessment_engine=assessment_engine,
+            report_builder=report_builder,
+            report_renderer=report_renderer,
+            report_root=report_root,
+            ruleset_version=ruleset_version,
+            default_plan=default_plan,
+        )
         self._hardware_inventory_engine = hardware_inventory_engine
 
     def run(
