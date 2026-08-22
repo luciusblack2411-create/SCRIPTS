@@ -8,7 +8,12 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
 from cisco_assessment.assessment.evidence import FindingEvidence, SourceTrace
 from cisco_assessment.assessment.models import AssessmentResult, Finding, RuleOutcome
-from cisco_assessment.models import AssessmentRun, DeviceInfo, HardwareInventory, HardwareInventoryRecord
+from cisco_assessment.models import (
+    AssessmentRun,
+    DeviceInfo,
+    HardwareInventory,
+    HardwareInventoryRecord,
+)
 from cisco_assessment.models.base import utc_now
 
 from .errors import ReportBuildError
