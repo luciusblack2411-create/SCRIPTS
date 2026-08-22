@@ -29,9 +29,12 @@ class SourceTrace(BaseModel):
     def validate_line_range(self) -> SourceTrace:
         if (self.line_start is None) != (self.line_end is None):
             raise ValueError("line_start and line_end must either both be set or both be omitted")
-        if self.line_start is not None and self.line_end is not None:
-            if self.line_end < self.line_start:
-                raise ValueError("line_end must be greater than or equal to line_start")
+        if (
+            self.line_start is not None
+            and self.line_end is not None
+            and self.line_end < self.line_start
+        ):
+            raise ValueError("line_end must be greater than or equal to line_start")
         return self
 
 

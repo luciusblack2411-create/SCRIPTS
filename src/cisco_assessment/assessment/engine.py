@@ -79,7 +79,9 @@ class AssessmentEngine(Generic[NormalizedT]):
                 normalized_model=metadata.normalized_model,
                 status=AssessmentStatus.NOT_APPLICABLE,
                 severity=metadata.severity,
-                message=f"Rule expects {metadata.normalized_model}; received {normalized_model}.",
+                message=(
+                    f"Rule expects {metadata.normalized_model}; received {normalized_model}."
+                ),
                 reason_code="unsupported_normalized_model",
             )
 
@@ -98,7 +100,7 @@ class AssessmentEngine(Generic[NormalizedT]):
 
         try:
             decision = rule.evaluate(model, context)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - engine must isolate arbitrary rule failures.
             return RuleOutcome(
                 rule_id=metadata.rule_id,
                 rule_version=metadata.version,
