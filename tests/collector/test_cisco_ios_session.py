@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import Path
 
 import pytest
 
@@ -30,6 +31,48 @@ class ScriptedTransport:
 
     def close(self) -> None:
         self.closed = True
+
+
+class PaginatedScriptedTransport:
+    """Expose the next page only after the session sends a single space."""
+
+    def __init__(self, pages: list[bytes]) -> None:
+        if not pages:
+            raise ValueError("pages must not be empty")
+        self._available = deque([b"SWITCH#", pages[0]])
+        self._remaining = deque(pages[1:])
+        self.sent: list[bytes] = []
+        self.closed = False
+
+    def send(self, data: bytes) -> None:
+        self.sent.append(data)
+        if data == b" " and self._remaining:
+            self._available.append(self._remaining.popleft())
+
+    def receive_ready(self) -> bool:
+        return bool(self._available)
+
+    def receive(self, max_bytes: int = 65535) -> bytes:
+        del max_bytes
+        return self._available.popleft()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _load_paginated_show_version_fixture() -> list[bytes]:
+    fixture_path = (
+        Path(__file__).parents[1]
+        / "fixtures"
+        / "collector"
+        / "iosxe"
+        / "show_version_paginated.txt"
+    )
+    encoded_pages = fixture_path.read_text(encoding="ascii").strip().split("\n===PAGE===\n")
+    return [
+        page.encode("ascii").decode("unicode_escape").encode("latin-1")
+        for page in encoded_pages
+    ]
 
 
 def test_session_learns_prompt_then_returns_exact_command_bytes() -> None:
@@ -85,6 +128,54 @@ def test_command_timeout_carries_partial_raw() -> None:
         session.execute("show version", timeout=1.0)
 
     assert exc_info.value.partial_raw == b"show version\r\npartial"
+
+
+def test_single_pager_is_advanced_once_until_learned_prompt() -> None:
+    pages = [
+        b"show version\r\nCisco IOS XE Software\r\n--More--",
+        b"\r\nSystem image file is flash:packages.conf\r\nSWITCH#",
+    ]
+    transport = PaginatedScriptedTransport(pages)
+    session = CiscoIOSSession(transport, sleeper=lambda _: None)
+
+    session.open()
+    result = session.execute("show version", timeout=1.0)
+
+    assert transport.sent == [b"show version\n", b" "]
+    assert result.raw == b"".join(pages)
+    assert result.raw.endswith(b"SWITCH#")
+
+
+def test_multiple_pagers_advance_once_each_and_preserve_fixture_raw() -> None:
+    pages = _load_paginated_show_version_fixture()
+    transport = PaginatedScriptedTransport(pages)
+    session = CiscoIOSSession(transport, sleeper=lambda _: None)
+
+    session.open()
+    result = session.execute("show version", timeout=1.0)
+
+    assert transport.sent == [b"show version\n", b" ", b" "]
+    assert result.raw == b"".join(pages)
+    assert result.raw.count(b"--More--") == 2
+    assert result.raw.endswith(b"SWITCH#")
+
+
+def test_timeout_after_pager_keeps_full_partial_raw_and_does_not_repeat_space() -> None:
+    page = b"show version\r\nCisco IOS XE Software\r\n--More--"
+    times = iter([0.0, 0.0, 0.0, 0.0, 0.5, 2.0])
+    transport = PaginatedScriptedTransport([page])
+    session = CiscoIOSSession(
+        transport,
+        clock=lambda: next(times),
+        sleeper=lambda _: None,
+    )
+
+    session.open()
+    with pytest.raises(CommandTimeoutError) as exc_info:
+        session.execute("show version", timeout=1.0)
+
+    assert transport.sent == [b"show version\n", b" "]
+    assert exc_info.value.partial_raw == page
 
 
 def test_session_refuses_configuration_mode_prompt() -> None:

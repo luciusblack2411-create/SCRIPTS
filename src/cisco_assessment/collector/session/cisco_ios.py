@@ -15,6 +15,8 @@ from cisco_assessment.collector.session.base import SessionCommandResult
 from cisco_assessment.collector.transport.base import SSHTransport
 
 _GENERIC_PROMPT_RE = re.compile(rb"(?:^|\r?\n)([^\r\n]{1,200}[>#])\s*\Z")
+_PAGER_MARKER = b"--More--"
+_PAGER_CONTINUE = b" "
 _CLI_ERROR_MARKERS: tuple[tuple[bytes, str], ...] = (
     (b"% Invalid input", "unsupported_command"),
     (b"% Incomplete command", "incomplete_command"),
@@ -90,6 +92,7 @@ class CiscoIOSSession:
     ) -> bytes:
         deadline = self._clock() + timeout
         chunks: list[bytes] = []
+        pagers_advanced = 0
         while self._clock() < deadline:
             if self._transport.receive_ready():
                 chunk = self._transport.receive()
@@ -98,6 +101,12 @@ class CiscoIOSSession:
                     raw = b"".join(chunks)
                     if prompt_pattern.search(raw):
                         return raw
+                    if command:
+                        observed_pagers = raw.count(_PAGER_MARKER)
+                        while pagers_advanced < observed_pagers:
+                            # Space is interactive session control only; it is not a CLI command.
+                            self._transport.send(_PAGER_CONTINUE)
+                            pagers_advanced += 1
             else:
                 self._sleeper(self._poll_interval)
 
