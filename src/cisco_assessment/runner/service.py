@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import cast
+from typing import NoReturn, cast
+from uuid import UUID
 
 from cisco_assessment.assessment import (
     AssessmentContext,
@@ -338,18 +339,15 @@ class AssessmentRunner:
         run: AssessmentRun,
         stage: RunnerStage,
         exc: Exception,
-        command_execution_id: object | None = None,
+        command_execution_id: UUID | None = None,
         collection: DeviceCollectionResult | None = None,
-    ) -> None:
-        from uuid import UUID
-
-        execution_id = command_execution_id if isinstance(command_execution_id, UUID) else None
+    ) -> NoReturn:
         AssessmentRunner._fail(
             run=run,
             stage=stage,
             error_type=type(exc).__name__,
             message=str(exc).strip() or "Unexpected orchestration error.",
-            command_execution_id=execution_id,
+            command_execution_id=command_execution_id,
             collection=collection,
         )
 
@@ -360,17 +358,14 @@ class AssessmentRunner:
         stage: RunnerStage,
         error_type: str,
         message: str,
-        command_execution_id: object | None = None,
+        command_execution_id: UUID | None = None,
         collection: DeviceCollectionResult | None = None,
-    ) -> None:
-        from uuid import UUID
-
-        execution_id = command_execution_id if isinstance(command_execution_id, UUID) else None
+    ) -> NoReturn:
         failure = RunnerFailure(
             stage=stage,
             error_type=error_type,
             message=message,
-            command_execution_id=execution_id,
+            command_execution_id=command_execution_id,
         )
         run.status = AssessmentRunStatus.FAILED
         run.finished_at = utc_now()
