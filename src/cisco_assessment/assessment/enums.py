@@ -1,4 +1,4 @@
-"""Assessment status and severity enums."""
+"""Assessment status, severity, and rule-category enums."""
 
 from enum import StrEnum
 
@@ -22,3 +22,15 @@ class FindingSeverity(StrEnum):
     MEDIUM = "MEDIUM"
     LOW = "LOW"
     INFO = "INFO"
+
+
+class RuleCategory(StrEnum):
+    """Stable top-level categories for the assessment rule catalog."""
+
+    SYSTEM = "system"
+    MANAGEMENT = "management"
+    SECURITY = "security"
+    INTERFACES = "interfaces"
+    VLAN = "vlan"
+    STP = "stp"
+    LINK_AGGREGATION = "link_aggregation"

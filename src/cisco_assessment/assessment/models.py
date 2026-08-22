@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cisco_assessment.models.enums import PlatformFamily
 
 from .enums import AssessmentStatus, FindingSeverity
 from .evidence import EvidenceRequest, FindingEvidence
+
+_ALLOWED_MISSING_DATA_STATUSES = frozenset(
+    {
+        AssessmentStatus.WARNING,
+        AssessmentStatus.INFO,
+        AssessmentStatus.NOT_APPLICABLE,
+        AssessmentStatus.ERROR,
+    }
+)
 
 
 class RuleMetadata(BaseModel):
@@ -25,6 +35,28 @@ class RuleMetadata(BaseModel):
     severity: FindingSeverity
     normalized_model: str = Field(min_length=1, max_length=128)
     supported_platforms: frozenset[PlatformFamily]
+    required_fields: tuple[str, ...] = ()
+    evidence_fields: tuple[str, ...] = ()
+    missing_data_status: AssessmentStatus = AssessmentStatus.ERROR
+    recommendation: str | None = Field(default=None, min_length=1, max_length=2048)
+
+    @model_validator(mode="after")
+    def validate_rule_contract(self) -> Self:
+        if self.missing_data_status not in _ALLOWED_MISSING_DATA_STATUSES:
+            raise ValueError(
+                "missing_data_status must be WARNING, INFO, NOT_APPLICABLE, or ERROR"
+            )
+        for collection_name, field_paths in (
+            ("required_fields", self.required_fields),
+            ("evidence_fields", self.evidence_fields),
+        ):
+            if any(not path.strip() for path in field_paths):
+                raise ValueError(f"{collection_name} must not contain blank field paths")
+            if len(field_paths) != len(set(field_paths)):
+                raise ValueError(f"{collection_name} must not contain duplicate field paths")
+        if self.evidence_fields and not set(self.required_fields).issubset(self.evidence_fields):
+            raise ValueError("required_fields must also be declared in evidence_fields")
+        return self
 
 
 class RuleDecision(BaseModel):
