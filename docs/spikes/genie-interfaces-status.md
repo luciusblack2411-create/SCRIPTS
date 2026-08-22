@@ -33,11 +33,11 @@ The IOS-XE schema is:
 
 The parser accepts these status tokens in its row regex: `connected`, `notconnect`, `suspended`, `inactive`, `disabled`, `err-disabled`, and `monitoring`.
 
-## Characterization fixture
+## Characterization fixture and observed Genie result
 
 The sanitized fixture contains seven rows covering access, disconnected, administratively disabled, err-disabled, trunk, routed, optical media, auto negotiation, 10G, and a Port-channel without a media type.
 
-Expected Genie result for the fixture:
+The characterization test executed the real Genie 26.6 parser with `ShowInterfacesStatus(device=None).cli(output=content)` and observed exactly:
 
 ```python
 {
@@ -100,9 +100,11 @@ Expected Genie result for the fixture:
 }
 ```
 
+All seven fixture ports are returned exactly once.
+
 ## RAW -> Genie -> framework mapping
 
-| RAW column/value | Genie | Proposed framework field | Transformation |
+| RAW column/value | Genie | Framework field | Transformation |
 | --- | --- | --- | --- |
 | `Gi1/0/1` | dict key `GigabitEthernet1/0/1` | `interfaces[n].interface` | Genie expands interface abbreviation |
 | `USER-ACCESS` | `name` | `interfaces[n].description` | whitespace trimmed; omitted if blank |
@@ -130,15 +132,86 @@ Genie returns values but no line numbers or source spans. The adapter therefore 
 
 This locator is intentionally not a second semantic interface parser: status/VLAN/duplex/speed/type continue to come only from Genie.
 
-## Dependency isolation
+For the valid seven-row fixture, status evidence resolves to RAW lines `2, 3, 4, 5, 6, 7, 8`, `ParseStatus.SUCCESS` is produced, and warnings are empty. The test also computes SHA-256 independently before parsing and verifies that `RawCommandOutput.content`, bytes, SHA-256, and `ParseResult.trace.raw_sha256` remain unchanged.
 
-The normal project dependencies are unchanged. The spike keeps its dependency list under `requirements/spikes/genie-interfaces-status.txt` and its own workflow.
+## Dependency closure and footprint
 
-The top-level `genie` distribution is installed with `--no-deps` because its declared dependency set pulls unrelated Genie libraries such as clean/conf/ops/sdk. The same is done for `genie.libs.parser`. Only imports exercised by this parser path are then installed explicitly: targeted pyATS logging/configuration/utils components, `xmltodict`, and `packaging`.
+The first experiment attempted to construct a minimal runtime with `--no-deps`. That approach was rejected for productization evaluation because imports progressively exposed undeclared/indirect runtime requirements.
 
-The CI result is the acceptance test for whether this reduced set is actually sufficient; any missing import must be added only after it is observed.
+The reproducible spike now installs only two top-level requirements and lets pip resolve their complete dependency closure normally:
 
-## Known limitations to evaluate before productization
+```text
+genie==26.6
+pyats==26.6
+```
+
+`genie==26.6` alone resolves successfully according to its package metadata and passes `pip check`, but importing `genie.metaparser` then fails because the runtime imports `pyats`, which is not declared by the `genie` distribution. Adding the top-level `pyats==26.6` package is therefore required. The `pyats` meta-package resolves its own component family, including `pyats.reporter`, `pyats.topology`, and `pyats.connections`. Our code does not create a Testbed or connection; those packages are dependency footprint only.
+
+With `genie==26.6` plus `pyats==26.6` on Python 3.11/Ubuntu, the resolver produced a healthy environment:
+
+- `pip check`: **No broken requirements found**.
+- exact imports for `ShowInterfacesStatus` and `Common`: **success**.
+- new or changed `pip freeze` entries relative to the project test environment: **83**.
+- `site-packages` before: **145,692 KiB**.
+- `site-packages` after: **875,652 KiB**.
+- observed delta: **729,960 KiB (~713 MiB / ~0.70 GiB)**.
+
+The resolver-selected Cisco package families were:
+
+```text
+genie==26.6
+genie.libs.clean==26.6
+genie.libs.conf==26.6
+genie.libs.filetransferutils==26.6
+genie.libs.health==26.6
+genie.libs.ops==26.6
+genie.libs.parser==26.6
+genie.libs.sdk==26.6
+pyats==26.6
+pyats.aereport==26.6
+pyats.aetest==26.6
+pyats.async==26.6
+pyats.connections==26.6
+pyats.datastructures==26.6
+pyats.easypy==26.6
+pyats.kleenex==26.6
+pyats.log==26.6
+pyats.reporter==26.6
+pyats.results==26.6
+pyats.tcl==26.6
+pyats.topology==26.6
+pyats.utils==26.6
+unicon==26.6
+unicon.plugins==26.6
+rest.connector==26.6
+yang.connector==26.6
+```
+
+Other resolver-selected additions include `aiohttp`, `asyncssh`, `ciscoisesdk`, `dill`, `gitpython`, `grpcio`, `jinja2`, `lxml`, `ncclient`, `netaddr`, `protobuf`, `psutil`, `pyVmomi`, `pyftpdlib`, `pysnmp`, `requests`, `ruamel.yaml`, `tftpy`, `xmltodict`, and their transitive dependencies. The workflow records the complete sorted `pip freeze` so the observed footprint is reproducible and auditable.
+
+This footprint is intentionally accepted for the spike. Dependency reduction or packaging isolation is a separate optimization problem and is not required to demonstrate the parser integration.
+
+## Validation results
+
+With the normally resolved Genie/pyATS environment, the spike tests demonstrate:
+
+- Genie receives only a pre-collected string through `cli(output=content)`;
+- parser instance uses `device=None`; no device connection exists;
+- all seven fixture records are extracted exactly once;
+- `Gi1/0/1` is deterministically expanded to `GigabitEthernet1/0/1`;
+- `connected`, `notconnect`, `disabled`, and `err-disabled` are preserved;
+- numeric VLAN, `trunk`, and `routed` are preserved as strings;
+- `auto`, `a-full`, `a-1000`, and `a-10G` are preserved;
+- optical media is retained and media can be absent on a Port-channel;
+- the framework adapter produces `InterfaceObservation`;
+- every normalized field with source data receives framework-owned `FieldEvidence` pointing to the correct RAW line;
+- RAW bytes and SHA-256 remain immutable;
+- parser status is `SUCCESS`;
+- the valid fixture produces zero warnings.
+
+The normal framework test suite also remains independent from the spike dependency installation.
+
+## Known limitations before productization
 
 - Genie canonicalizes the interface key, so exact RAW spelling must be retained through separate evidence rather than inferred from the normalized key.
 - `name` is optional and disappears for an empty description.
@@ -146,8 +219,21 @@ The CI result is the acceptance test for whether this reduced set is actually su
 - VLAN is always a string and can represent a numeric VLAN, `trunk`, `routed`, or another non-space token.
 - The parser has a closed status-token regex. A valid IOS/IOS-XE status outside that set causes the whole row not to match.
 - Genie does not provide RAW line numbers, columns, or substrings, so framework traceability must remain outside Genie.
-- The spike does not introduce a generic `ParserBackend`; the integration is specific to `IOSShowInterfacesStatusParser`.
+- The normally resolved runtime has a large footprint (~713 MiB observed delta) and includes pyATS connection/topology components even though this integration does not use them.
+- The spike does not introduce a generic `ParserBackend`; the integration remains specific to `IOSShowInterfacesStatusParser`.
 
 ## Productization proposal
 
-If the characterization tests pass, `IOSShowInterfacesStatusParser` can remain a normal `BaseParser[InterfaceObservation]`. `_parse_content()` should call Genie with `output=content`, adapt the returned dictionary into the framework-owned immutable Pydantic model, independently construct `FieldEvidence` from the RAW line index, and return `ParsedPayload`. The parser should only be added to the productive registry after the dependency/fixture behavior is accepted and the interface model contract is finalized.
+`IOSShowInterfacesStatusParser` can remain a normal `BaseParser[InterfaceObservation]`. `_parse_content()` should call Genie with `output=content`, adapt the returned dictionary into the framework-owned immutable Pydantic model, independently construct `FieldEvidence` from the RAW line index, and return `ParsedPayload`.
+
+Productization should preserve these boundaries:
+
+- do not give Genie a device or Testbed;
+- do not let Genie execute commands;
+- retain `RawCommandOutput` as the immutable source of truth;
+- keep the adapter and normalized model framework-owned;
+- keep provenance/line mapping framework-owned;
+- do not introduce a generic parser-backend abstraction until another concrete integration demonstrates the need;
+- treat the dependency footprint as a packaging/isolation follow-up rather than changing the parsing architecture.
+
+The parser should only be added to the productive registry after this spike is accepted and the InterfaceObservation contract is finalized.
