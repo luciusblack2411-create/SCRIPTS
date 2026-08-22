@@ -74,6 +74,7 @@ class ParserId(StrEnum):
 
 class NormalizedModelId(StrEnum):
     DEVICE_INFO = "DeviceInfo"
+    HARDWARE_INVENTORY = "HardwareInventory"
     INVENTORY_ITEM = "InventoryItem"
     DEVICE_CLOCK = "DeviceClock"
     STACK_INFO = "StackInfo"
