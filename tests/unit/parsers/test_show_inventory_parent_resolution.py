@@ -14,15 +14,13 @@ def test_duplicate_member_number_keeps_explicit_child_parent_unknown() -> None:
         command="show inventory",
         sequence=2,
     )
-    content = "\n".join(
-        (
-            'NAME: "Switch 1", DESCR: "Cisco Catalyst Switch"',
-            "PID: C9300-48P, VID: V01, SN: MEMBER1A",
-            'NAME: "Switch 1", DESCR: "Duplicate member identity"',
-            "PID: C9300-48P, VID: V01, SN: MEMBER1B",
-            'NAME: "Gi1/1/1", DESCR: "1000BaseSX SFP"',
-            "PID: GLC-SX-MMD, VID: V03, SN: OPTIC1",
-        )
+    content = (
+        'NAME: "Switch 1", DESCR: "Cisco Catalyst Switch"\n'
+        "PID: C9300-48P, VID: V01, SN: MEMBER1A\n"
+        'NAME: "Switch 1", DESCR: "Duplicate member identity"\n'
+        "PID: C9300-48P, VID: V01, SN: MEMBER1B\n"
+        'NAME: "Gi1/1/1", DESCR: "1000BaseSX SFP"\n'
+        "PID: GLC-SX-MMD, VID: V03, SN: OPTIC1"
     )
     raw = RawCommandOutput.from_text(command_execution_id=execution.id, content=content)
 
