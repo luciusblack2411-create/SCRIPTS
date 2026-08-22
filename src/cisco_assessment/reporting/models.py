@@ -22,8 +22,6 @@ class ReportModel(BaseModel):
 
 
 class ReportMetadata(ReportModel):
-    """Metadata about one generated report artifact."""
-
     report_id: UUID
     generated_at: datetime
     generator_name: str = Field(default="cisco-switch-assessment", min_length=1, max_length=128)
@@ -36,8 +34,6 @@ class ReportMetadata(ReportModel):
 
 
 class AssessmentRunReport(ReportModel):
-    """AssessmentRun metadata copied into the canonical report."""
-
     assessment_run_id: UUID
     device_id: UUID
     framework_version: str
@@ -56,16 +52,12 @@ class AssessmentRunReport(ReportModel):
 
 
 class TargetSnapshotReport(ReportModel):
-    """Assessment-time target identity, independent from normalized observations."""
-
     management_address: str
     hostname: str | None
     platform_family: PlatformFamily
 
 
 class DeviceInfoReport(ReportModel):
-    """Canonical snapshot of the normalized DeviceInfo evaluated by the engine."""
-
     normalized_model: Literal["DeviceInfo"] = "DeviceInfo"
     schema_version: str
     vendor: str
@@ -79,16 +71,31 @@ class DeviceInfoReport(ReportModel):
     boot_mode: str | None
 
 
-class RuleReferenceReport(ReportModel):
-    """Stable reference to the rule responsible for an outcome or finding."""
+class HardwareComponentReport(ReportModel):
+    name: str
+    description: str | None
+    pid: str | None
+    vid: str | None
+    serial_number: str | None
+    kind: str
 
+
+class HardwareInventoryReport(ReportModel):
+    normalized_model: Literal["HardwareInventory"] = "HardwareInventory"
+    schema_version: str
+    vendor: str
+    platform: PlatformFamily
+    chassis: HardwareComponentReport | None = None
+    modules: tuple[HardwareComponentReport, ...] = ()
+    components: tuple[HardwareComponentReport, ...] = ()
+
+
+class RuleReferenceReport(ReportModel):
     rule_id: str
     rule_version: str
 
 
 class SourceTraceReport(ReportModel):
-    """Reference chain from normalized evidence back to execution and immutable RAW."""
-
     assessment_run_id: UUID
     command_execution_id: UUID
     raw_output_id: UUID
@@ -102,8 +109,6 @@ class SourceTraceReport(ReportModel):
 
 
 class EvidenceReport(ReportModel):
-    """One normalized field observation and the RAW sources that produced it."""
-
     normalized_model: str
     field_path: str
     observed_value: JsonValue = None
@@ -111,8 +116,6 @@ class EvidenceReport(ReportModel):
 
 
 class RuleOutcomeReport(ReportModel):
-    """Complete rule outcome, including PASS and NOT_APPLICABLE results."""
-
     rule: RuleReferenceReport
     title: str
     category: str
@@ -128,8 +131,6 @@ class RuleOutcomeReport(ReportModel):
 
 
 class FindingReport(ReportModel):
-    """Reportable finding with stable rule and evidence traceability."""
-
     finding_id: UUID
     device_id: UUID
     rule: RuleReferenceReport
@@ -146,8 +147,6 @@ class FindingReport(ReportModel):
 
 
 class AssessmentSummary(ReportModel):
-    """Pure aggregations over engine outcomes and reportable findings."""
-
     rules_evaluated: NonNegativeInt
     findings_total: NonNegativeInt
     outcome_status_counts: dict[AssessmentStatus, NonNegativeInt]
@@ -155,21 +154,18 @@ class AssessmentSummary(ReportModel):
 
 
 class AssessmentReport(ReportModel):
-    """Canonical report consumed by all current and future renderers."""
-
     schema_version: Literal["0.1"] = REPORT_SCHEMA_VERSION
     metadata: ReportMetadata
     run: AssessmentRunReport
     target: TargetSnapshotReport
     device_info: DeviceInfoReport
+    hardware_inventory: HardwareInventoryReport | None = None
     summary: AssessmentSummary
     outcomes: tuple[RuleOutcomeReport, ...]
     findings: tuple[FindingReport, ...]
 
 
 class RenderedReport(ReportModel):
-    """Format-specific bytes returned by a renderer."""
-
     content: bytes
     media_type: str = Field(min_length=1, max_length=128)
     extension: str = Field(min_length=2, max_length=32, pattern=r"^\.[A-Za-z0-9]+$")
