@@ -5,8 +5,6 @@ from pydantic import ValidationError
 
 from cisco_assessment.models import (
     HARDWARE_INVENTORY_SCHEMA_VERSION,
-    HardwareComponent,
-    HardwareComponentKind,
     HardwareComponentType,
     HardwareInventory,
     HardwareInventoryRecord,
@@ -81,6 +79,7 @@ def test_multiple_members_and_known_or_unknown_parent_relationships() -> None:
         "hw:0004",
         "hw:0005",
     ]
+    assert inventory.all_components == inventory.records
     assert [member.id for member in inventory.members] == ["hw:0001", "hw:0004"]
     assert inventory.children_of_member(member_1.id) == (child_1,)
     assert inventory.children_of_member(member_2.id) == (child_2,)
@@ -282,41 +281,33 @@ def test_inventory_can_represent_all_17_observed_records_without_loss() -> None:
     assert target.parent_id is None
 
 
-def test_v0_1_shape_has_a_non_ambiguous_migration_to_canonical_records() -> None:
-    legacy_chassis = HardwareComponent(
-        name="Switch 1",
-        description="Cisco switch",
-        pid="C9300-48P",
-        vid="V02",
-        serial_number="FOC0000AAAA",
-        kind=HardwareComponentKind.CHASSIS,
-    )
-    legacy_module = HardwareComponent(
-        name="Power Supply Module 1",
-        description="Cisco power supply",
-        pid="PWR-C1-715WAC",
-        vid="V02",
-        serial_number="DTN0000A111",
-        kind=HardwareComponentKind.MODULE,
-    )
-
-    inventory = HardwareInventory(
-        schema_version="0.1",
-        platform=PlatformFamily.IOS_XE,
-        chassis=legacy_chassis,
-        modules=(legacy_module,),
-    )
-
-    assert inventory.schema_version == "0.2"
-    assert [record.component_type for record in inventory.records] == [
-        HardwareComponentType.CHASSIS_MEMBER,
-        HardwareComponentType.OTHER,
-    ]
-    assert all(record.parent_id is None for record in inventory.records)
+def test_inventory_serializes_only_canonical_v0_2_fields() -> None:
+    record = _record(1, name="Switch 1", component_type=HardwareComponentType.CHASSIS_MEMBER)
+    inventory = HardwareInventory(platform=PlatformFamily.IOS_XE, records=(record,))
 
     payload = inventory.model_dump(mode="json")
     assert set(payload) == {"schema_version", "vendor", "platform", "records"}
-    assert "chassis" not in payload
-    assert "modules" not in payload
-    assert "components" not in payload
     assert HardwareInventory.model_validate_json(inventory.model_dump_json()) == inventory
+
+
+@pytest.mark.parametrize("legacy_field", ("chassis", "modules", "components"))
+def test_inventory_rejects_legacy_construction_fields(legacy_field: str) -> None:
+    record = _record(1, name="Switch 1", component_type=HardwareComponentType.CHASSIS_MEMBER)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HardwareInventory(
+            platform=PlatformFamily.IOS_XE,
+            records=(record,),
+            **{legacy_field: "legacy"},
+        )
+
+
+def test_inventory_rejects_v0_1_schema_version() -> None:
+    record = _record(1, name="Switch 1", component_type=HardwareComponentType.CHASSIS_MEMBER)
+
+    with pytest.raises(ValidationError, match="Input should be '0.2'"):
+        HardwareInventory(
+            schema_version="0.1",
+            platform=PlatformFamily.IOS_XE,
+            records=(record,),
+        )

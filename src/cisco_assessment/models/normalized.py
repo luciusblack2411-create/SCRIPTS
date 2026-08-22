@@ -140,75 +140,13 @@ class HardwareInventoryRecord(BaseModel):
         return self
 
 
-class HardwareComponentKind(StrEnum):
-    """Deprecated v0.1 role used only by the migration bridge."""
-
-    CHASSIS = "chassis"
-    MODULE = "module"
-    COMPONENT = "component"
-
-
-class HardwareComponent(BaseModel):
-    """Deprecated v0.1 record accepted only for staged migration.
-
-    New code must use HardwareInventoryRecord and HardwareComponentType.
-    """
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    name: str = Field(min_length=1, max_length=256)
-    description: str | None = Field(default=None, min_length=1, max_length=512)
-    pid: str | None = Field(default=None, min_length=1, max_length=128)
-    vid: str | None = Field(default=None, min_length=1, max_length=64)
-    serial_number: str | None = Field(default=None, min_length=1, max_length=128)
-    kind: HardwareComponentKind
-
-    @field_validator("name", "description", "pid", "vid", "serial_number")
-    @classmethod
-    def normalize_text(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = value.strip()
-        if not cleaned:
-            return None
-        return cleaned
-
-
-def _legacy_component_type(component: HardwareComponent) -> HardwareComponentType:
-    if component.kind is HardwareComponentKind.CHASSIS:
-        return HardwareComponentType.CHASSIS_MEMBER
-    return HardwareComponentType.OTHER
-
-
-def _legacy_view(record: HardwareInventoryRecord) -> HardwareComponent:
-    if record.component_type is HardwareComponentType.CHASSIS_MEMBER:
-        kind = HardwareComponentKind.CHASSIS
-    elif record.component_type is HardwareComponentType.NETWORK_MODULE:
-        kind = HardwareComponentKind.MODULE
-    else:
-        kind = HardwareComponentKind.COMPONENT
-    return HardwareComponent(
-        name=record.name,
-        description=record.description,
-        pid=record.pid,
-        vid=record.vid,
-        serial_number=record.serial_number,
-        kind=kind,
-    )
-
-
 class HardwareInventory(BaseModel):
-    """Hardware Inventory normalized contract v0.2.
+    """Canonical Hardware Inventory normalized contract v0.2.
 
-    ``records`` is the only canonical serialized collection. Parent relationships
-    are optional and must be explicit: ``None`` means source evidence did not
-    prove membership. No RAW text, parser metadata or source line numbers live
-    here.
-
-    The excluded ``chassis`` field plus ``modules/components`` properties are a
-    temporary v0.1 bridge for unchanged Engine/Rules/Reporting code. ``chassis``
-    is always re-derived from ``records`` and cannot be independent canonical
-    state. Legacy MODULE/COMPONENT inputs become ``other`` and receive no parent.
+    ``records`` is the only construction and serialization contract for physical
+    inventory. Parent relationships are optional and must be explicit:
+    ``parent_id=None`` means source evidence did not prove membership. RAW text,
+    parser metadata and source line numbers remain outside this model.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -217,98 +155,6 @@ class HardwareInventory(BaseModel):
     vendor: Literal["Cisco"] = "Cisco"
     platform: PlatformFamily
     records: tuple[HardwareInventoryRecord, ...] = Field(min_length=1)
-    chassis: HardwareComponent | None = Field(default=None, exclude=True, repr=False)
-
-    def __init__(
-        self,
-        *,
-        platform: PlatformFamily,
-        records: tuple[HardwareInventoryRecord, ...] | None = None,
-        schema_version: Literal["0.1", "0.2"] = HARDWARE_INVENTORY_SCHEMA_VERSION,
-        vendor: Literal["Cisco"] = "Cisco",
-        chassis: HardwareComponent | None = None,
-        modules: tuple[HardwareComponent, ...] = (),
-        components: tuple[HardwareComponent, ...] = (),
-    ) -> None:
-        """Construct v0.2 directly or accept the temporary v0.1 input shape."""
-
-        if records is not None:
-            if chassis is not None or modules or components:
-                raise ValueError(
-                    "records cannot be combined with v0.1 chassis/modules/components"
-                )
-            super().__init__(
-                schema_version=schema_version,
-                vendor=vendor,
-                platform=platform,
-                records=records,
-            )
-            return
-
-        super().__init__(
-            schema_version=schema_version,
-            vendor=vendor,
-            platform=platform,
-            chassis=chassis,
-            modules=modules,
-            components=components,
-        )
-
-    @model_validator(mode="before")
-    @classmethod
-    def migrate_v0_1_shape(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-
-        legacy_keys = ("chassis", "modules", "components")
-        has_legacy = any(key in data for key in legacy_keys)
-        if "records" in data and has_legacy:
-            raise ValueError("records cannot be combined with v0.1 chassis/modules/components")
-        if not has_legacy:
-            return data
-
-        migrated: list[HardwareComponent] = []
-        chassis = data.get("chassis")
-        if chassis is not None:
-            migrated.append(
-                chassis
-                if isinstance(chassis, HardwareComponent)
-                else HardwareComponent.model_validate(chassis)
-            )
-        for key in ("modules", "components"):
-            for item in data.get(key) or ():
-                migrated.append(
-                    item
-                    if isinstance(item, HardwareComponent)
-                    else HardwareComponent.model_validate(item)
-                )
-
-        if not migrated:
-            raise ValueError("v0.1 HardwareInventory must contain at least one physical record")
-
-        records = tuple(
-            HardwareInventoryRecord(
-                ordinal=ordinal,
-                name=component.name,
-                description=component.description,
-                pid=component.pid,
-                vid=component.vid,
-                serial_number=component.serial_number,
-                component_type=_legacy_component_type(component),
-                parent_id=None,
-            )
-            for ordinal, component in enumerate(migrated, start=1)
-        )
-        migrated_data = {
-            key: value
-            for key, value in data.items()
-            if key not in {*legacy_keys, "schema_version"}
-        }
-        return {
-            **migrated_data,
-            "schema_version": HARDWARE_INVENTORY_SCHEMA_VERSION,
-            "records": records,
-        }
 
     @field_validator("records")
     @classmethod
@@ -347,15 +193,6 @@ class HardwareInventory(BaseModel):
                 seen.add(current)
                 current = parent_by_id[current]
 
-        legacy_chassis = next(
-            (
-                _legacy_view(record)
-                for record in self.records
-                if record.component_type is HardwareComponentType.CHASSIS_MEMBER
-            ),
-            None,
-        )
-        object.__setattr__(self, "chassis", legacy_chassis)
         return self
 
     @property
@@ -395,25 +232,3 @@ class HardwareInventory(BaseModel):
         if member.component_type is not HardwareComponentType.CHASSIS_MEMBER:
             raise ValueError(f"{member_id!r} does not reference a chassis_member")
         return self.children_of(member_id)
-
-    @property
-    def modules(self) -> tuple[HardwareComponent, ...]:
-        """Temporary v0.1 view for explicitly typed network modules."""
-
-        return tuple(
-            _legacy_view(record)
-            for record in self.records
-            if record.component_type is HardwareComponentType.NETWORK_MODULE
-        )
-
-    @property
-    def components(self) -> tuple[HardwareComponent, ...]:
-        """Temporary v0.1 view for records not exposed as chassis/modules."""
-
-        first_member_id = None if not self.members else self.members[0].id
-        return tuple(
-            _legacy_view(record)
-            for record in self.records
-            if record.id != first_member_id
-            and record.component_type is not HardwareComponentType.NETWORK_MODULE
-        )
