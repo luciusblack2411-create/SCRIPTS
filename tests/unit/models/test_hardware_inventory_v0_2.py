@@ -187,7 +187,7 @@ def test_record_preserves_inventory_fields_and_other_is_explicit_and_immutable()
     assert record.component_type is HardwareComponentType.OTHER
 
     with pytest.raises(ValidationError):
-        setattr(record, "name", "Changed")
+        record.name = "Changed"
 
 
 OBSERVED_17 = (
