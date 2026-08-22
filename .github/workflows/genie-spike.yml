@@ -24,7 +24,7 @@ jobs:
       - name: Install project test dependencies
         run: python -m pip install -e '.[dev]'
 
-      - name: Install Genie and pyATS parser cores without ecosystems
+      - name: Install Genie and parser framework cores without ecosystems
         run: >-
           python -m pip install --no-deps
           'genie==26.6'
@@ -33,6 +33,7 @@ jobs:
           'pyats.log==26.6'
           'pyats.utils==26.6'
           'pyats.easypy==26.6'
+          'unicon==26.6'
 
       - name: Install non-framework parser imports
         run: >-
