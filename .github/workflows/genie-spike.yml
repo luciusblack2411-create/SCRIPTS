@@ -42,8 +42,14 @@ jobs:
       - name: Characterize installed distributions
         run: python -m pip freeze | sort
 
+      - name: Import exact Genie parser path
+        run: >-
+          python -c "from genie.libs.parser.iosxe.show_interface import ShowInterfacesStatus;
+          from genie.libs.parser.utils.common import Common;
+          print(ShowInterfacesStatus, Common.convert_intf_name('Gi1/0/1'))"
+
       - name: Run Genie spike tests
-        run: pytest -q tests/spikes/test_genie_interfaces_status.py
+        run: pytest -q -ra tests/spikes/test_genie_interfaces_status.py
 
       - name: Lint spike code
         run: ruff check src/cisco_assessment/models/interface.py src/cisco_assessment/parsers/ios/show_interfaces_status.py tests/spikes/test_genie_interfaces_status.py
