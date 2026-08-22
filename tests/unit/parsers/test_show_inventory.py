@@ -4,7 +4,7 @@ from uuid import uuid4
 from cisco_assessment.catalog.enums import CommandId, NormalizedModelId, ParserId
 from cisco_assessment.models import CommandExecution, RawCommandOutput
 from cisco_assessment.models.enums import PlatformFamily
-from cisco_assessment.models.normalized import HardwareComponentKind
+from cisco_assessment.models.normalized import HardwareComponentType
 from cisco_assessment.parsers import IOSShowInventoryParser, ParseStatus, build_parser_registry
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "ios" / "show_inventory"
@@ -31,14 +31,17 @@ def test_parse_show_inventory_preserves_field_to_raw_traceability() -> None:
     )
 
     assert result.status is ParseStatus.SUCCESS
-    assert result.data.chassis is not None
-    assert result.data.chassis.pid == "C9300-48P"
-    assert result.data.chassis.serial_number == "FOC0000AAAA"
-    assert result.data.chassis.kind is HardwareComponentKind.CHASSIS
-    assert len(result.data.modules) == 1
-    assert result.data.modules[0].pid == "PWR-C1-715WAC"
-    assert len(result.data.components) == 1
-    assert result.data.components[0].pid == "SFP-10G-SR"
+    assert result.data.schema_version == "0.2"
+    assert len(result.data.members) == 1
+    assert result.data.members[0].pid == "C9300-48P"
+    assert result.data.members[0].serial_number == "FOC0000AAAA"
+    assert result.data.members[0].component_type is HardwareComponentType.CHASSIS_MEMBER
+
+    power_supply = next(item for item in result.data.all_components if item.pid == "PWR-C1-715WAC")
+    transceiver = next(item for item in result.data.all_components if item.pid == "SFP-10G-SR")
+    assert power_supply.component_type is HardwareComponentType.OTHER
+    assert transceiver.component_type is HardwareComponentType.OTHER
+
     assert result.trace.parser_id is ParserId.IOS_SHOW_INVENTORY_V1
     assert result.trace.normalized_model is NormalizedModelId.HARDWARE_INVENTORY
     assert result.trace.command_execution_id == execution.id
@@ -65,13 +68,9 @@ def test_parse_show_inventory_neutralizes_pager_artifacts_in_derived_view() -> N
     )
 
     assert result.status is ParseStatus.SUCCESS
-    assert result.data.chassis is not None
-    components = (
-        (result.data.chassis,)
-        + result.data.modules
-        + result.data.components
-    )
+    components = result.data.all_components
     assert len(components) == 17
+    assert len(result.data.members) == 2
 
     target = next(component for component in components if component.name == "Gi2/1/2")
     assert target.pid == "GLC-SX-MMD"
