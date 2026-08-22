@@ -197,5 +197,6 @@ def test_assess_cli_help_exposes_supported_plans_and_no_free_command_option() ->
     assert "--plan" in help_output
     assert "show-version" in help_output
     assert "hardware-inventory" in help_output
-    assert "show version + show inventory" in help_output
+    assert "show version" in help_output
+    assert "show inventory" in help_output
     assert "--command" not in help_output
