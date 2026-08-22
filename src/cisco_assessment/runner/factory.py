@@ -7,7 +7,7 @@ from pathlib import Path
 
 from cisco_assessment import __version__
 from cisco_assessment.assessment import AssessmentEngine, RuleCatalog, device_info_rule_catalog
-from cisco_assessment.catalog import COMMAND_CATALOG_V0_1
+from cisco_assessment.catalog import COMMAND_CATALOG_V0_1, CommandCatalog
 from cisco_assessment.collector import CommandExecutor, DeviceCollector, ReadOnlyPolicy
 from cisco_assessment.collector.session.factory import SessionFactory
 from cisco_assessment.collector.transport import (
@@ -16,10 +16,11 @@ from cisco_assessment.collector.transport import (
     SSHTransport,
 )
 from cisco_assessment.models import DeviceInfo
-from cisco_assessment.parsers import build_parser_registry
+from cisco_assessment.parsers import ParserRegistry, build_parser_registry
 from cisco_assessment.raw import FilesystemRawRepository
 from cisco_assessment.reporting import AssessmentReportBuilder, JsonReportRenderer
 
+from .plan import AssessmentPlan, SHOW_VERSION_PLAN_V0_2
 from .service import AssessmentRunner
 
 
@@ -37,8 +38,11 @@ def build_runner(
     port: int = 22,
     strict_host_key: bool = True,
     command_timeout: float = 30.0,
+    command_catalog: CommandCatalog = COMMAND_CATALOG_V0_1,
+    parser_registry: ParserRegistry | None = None,
+    default_plan: AssessmentPlan = SHOW_VERSION_PLAN_V0_2,
 ) -> AssessmentRunner:
-    """Compose the v0.1 pipeline while allowing transport injection for tests."""
+    """Compose the v0.2 pipeline while allowing test dependency injection."""
     policy = ReadOnlyPolicy()
     raw_repository = FilesystemRawRepository(Path(output_root))
     executor = CommandExecutor(policy=policy, raw_repository=raw_repository)
@@ -57,13 +61,14 @@ def build_runner(
     return AssessmentRunner(
         framework_version=__version__,
         collector=collector,
-        parser_registry=build_parser_registry(),
-        command_catalog=COMMAND_CATALOG_V0_1,
+        parser_registry=parser_registry or build_parser_registry(),
+        command_catalog=command_catalog,
         assessment_engine=AssessmentEngine[DeviceInfo](rule_catalog),
         report_builder=AssessmentReportBuilder(),
         report_renderer=JsonReportRenderer(),
         report_root=Path(output_root),
         ruleset_version=_ruleset_version(rule_catalog),
+        default_plan=default_plan,
     )
 
 
@@ -73,8 +78,9 @@ def build_default_runner(
     port: int = 22,
     strict_host_key: bool = True,
     command_timeout: float = 30.0,
+    default_plan: AssessmentPlan = SHOW_VERSION_PLAN_V0_2,
 ) -> AssessmentRunner:
-    """Compose the production runner using the existing Paramiko transport."""
+    """Compose the production runner using Paramiko and the default plan."""
 
     def transport_factory() -> SSHTransport:
         return ParamikoSSHTransport()
@@ -85,4 +91,5 @@ def build_default_runner(
         port=port,
         strict_host_key=strict_host_key,
         command_timeout=command_timeout,
+        default_plan=default_plan,
     )
