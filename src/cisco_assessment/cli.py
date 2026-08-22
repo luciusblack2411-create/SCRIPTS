@@ -9,7 +9,12 @@ import typer
 
 from cisco_assessment.collector.transport import SSHCredentials
 from cisco_assessment.models import Device, PlatformFamily
-from cisco_assessment.runner import AssessmentRunnerError, build_default_runner
+from cisco_assessment.runner import (
+    AssessmentRunnerError,
+    ProductiveAssessmentPlanId,
+    build_default_runner,
+    resolve_productive_assessment_plan,
+)
 
 app = typer.Typer(help="Cisco Switch Assessment Framework")
 
@@ -28,6 +33,14 @@ _OUTPUT_DIR_OPTION = typer.Option(
     file_okay=False,
     help="Directory where RAW evidence and the JSON report are persisted.",
 )
+_PLAN_OPTION = typer.Option(
+    ProductiveAssessmentPlanId.SHOW_VERSION,
+    "--plan",
+    help=(
+        "Productive assessment plan. show-version (default): show version only; "
+        "hardware-inventory: show version + show inventory."
+    ),
+)
 
 
 def _parse_platform(value: str) -> PlatformFamily:
@@ -37,7 +50,7 @@ def _parse_platform(value: str) -> PlatformFamily:
     if normalized == PlatformFamily.IOS_XE.value:
         return PlatformFamily.IOS_XE
     raise typer.BadParameter(
-        "Runner v0.1 supports only 'ios' and 'ios_xe'.",
+        "Runner supports only 'ios' and 'ios_xe'.",
         param_hint="--platform",
     )
 
@@ -64,6 +77,7 @@ def assess(
         "--platform",
         help="Target platform: ios or ios_xe.",
     ),
+    plan: ProductiveAssessmentPlanId = _PLAN_OPTION,
     port: int = typer.Option(22, "--port", min=1, max=65535, help="SSH port."),
     key_file: Path | None = _KEY_FILE_OPTION,
     use_agent: bool = typer.Option(
@@ -78,7 +92,7 @@ def assess(
         help="Allow an unknown SSH host key for this run. Strict checking is the default.",
     ),
 ) -> None:
-    """Assess one IOS/IOS-XE switch using only the show version vertical slice."""
+    """Assess one IOS/IOS-XE switch using a supported productive assessment plan."""
     if not host.strip():
         raise typer.BadParameter("host must not be blank", param_hint="--host")
     if not username.strip():
@@ -90,6 +104,7 @@ def assess(
         )
 
     platform_family = _parse_platform(platform)
+    assessment_plan = resolve_productive_assessment_plan(plan)
     password: str | None = None
     if key_file is None and not use_agent:
         password = typer.prompt("SSH password", hide_input=True)
@@ -110,7 +125,11 @@ def assess(
     )
 
     try:
-        result = runner.run(device=device, credentials=credentials)
+        result = runner.run(
+            device=device,
+            credentials=credentials,
+            plan=assessment_plan,
+        )
     except AssessmentRunnerError as exc:
         failure_payload: dict[str, object] = {
             "status": exc.run.status.value,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -63,3 +64,21 @@ HARDWARE_INVENTORY_PLAN_V0_1 = AssessmentPlan(
         AssessmentPlanItem(command_id=CommandId.SYSTEM_INVENTORY),
     ),
 )
+
+
+class ProductiveAssessmentPlanId(StrEnum):
+    """Stable CLI-selectable identifiers for productive assessment plans."""
+
+    SHOW_VERSION = "show-version"
+    HARDWARE_INVENTORY = "hardware-inventory"
+
+
+_PRODUCTIVE_ASSESSMENT_PLANS: dict[ProductiveAssessmentPlanId, AssessmentPlan] = {
+    ProductiveAssessmentPlanId.SHOW_VERSION: SHOW_VERSION_PLAN_V0_2,
+    ProductiveAssessmentPlanId.HARDWARE_INVENTORY: HARDWARE_INVENTORY_PLAN_V0_1,
+}
+
+
+def resolve_productive_assessment_plan(plan_id: ProductiveAssessmentPlanId) -> AssessmentPlan:
+    """Resolve one whitelisted productive plan; arbitrary command lists are not accepted."""
+    return _PRODUCTIVE_ASSESSMENT_PLANS[plan_id]
