@@ -149,7 +149,11 @@ def test_assess_cli_hardware_inventory_plan_runs_both_productive_commands(
     payload = json.loads(result.output)
     assert len(payload["raw_paths"]) == 2
     report_payload = json.loads(Path(payload["report_path"]).read_text())
-    assert report_payload["hardware_inventory"]["chassis"]["pid"] == "C9300-48P"
+    hardware_payload = report_payload["hardware_inventory"]
+    assert hardware_payload["records"][0]["pid"] == "C9300-48P"
+    assert "chassis" not in hardware_payload
+    assert "modules" not in hardware_payload
+    assert "components" not in hardware_payload
     assert HARDWARE_INVENTORY_PLAN_V0_1.command_ids[0].value == "system.version"
     assert HARDWARE_INVENTORY_PLAN_V0_1.command_ids[1].value == "system.inventory"
 
