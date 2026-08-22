@@ -1,9 +1,11 @@
-"""Deterministic HardwareInventory assessment rules v0.1."""
+"""Deterministic HardwareInventory assessment rules over canonical v0.2 records."""
 
 from __future__ import annotations
 
+from collections import Counter
+
 from cisco_assessment.models.enums import PlatformFamily
-from cisco_assessment.models.normalized import HardwareInventory
+from cisco_assessment.models.normalized import HardwareComponentType, HardwareInventory
 
 from .catalog import RuleCatalog
 from .context import AssessmentContext
@@ -14,22 +16,40 @@ from .models import RuleDecision, RuleMetadata
 _IOS_PLATFORMS = frozenset({PlatformFamily.IOS, PlatformFamily.IOS_XE})
 
 
+def _record_field_path(index: int, field: str) -> str:
+    return f"records[{index}].{field}"
+
+
+def _component_type_evidence(model: HardwareInventory) -> tuple[EvidenceRequest, ...]:
+    return tuple(
+        EvidenceRequest(
+            field_path=_record_field_path(index, "component_type"),
+            observed_value=record.component_type.value,
+        )
+        for index, record in enumerate(model.records)
+    )
+
+
 class ChassisIdentityObservedRule:
-    """Require a chassis PID and serial number in physical inventory."""
+    """Require PID and serial identity for every observed chassis member."""
 
     _metadata = RuleMetadata(
         rule_id="HW-001",
         version="0.1.0",
         title="Chassis identity observed",
-        description="Checks that show inventory reports a chassis PID and serial number.",
+        description=(
+            "Checks that every chassis/member record reports a PID and serial number."
+        ),
         category=RuleCategory.SYSTEM,
         severity=FindingSeverity.MEDIUM,
         normalized_model="HardwareInventory",
         supported_platforms=_IOS_PLATFORMS,
-        required_fields=("chassis",),
-        evidence_fields=("chassis", "chassis.pid", "chassis.serial_number"),
+        required_fields=("records",),
+        evidence_fields=("records",),
         missing_data_status=AssessmentStatus.ERROR,
-        recommendation="Verify platform inventory visibility and investigate missing chassis identity fields.",
+        recommendation=(
+            "Verify platform inventory visibility and investigate missing chassis identity fields."
+        ),
     )
 
     @property
@@ -38,47 +58,76 @@ class ChassisIdentityObservedRule:
 
     def evaluate(self, model: HardwareInventory, context: AssessmentContext) -> RuleDecision:
         del context
-        assert model.chassis is not None
-        missing = [
-            field
-            for field, value in (
-                ("PID", model.chassis.pid),
-                ("serial number", model.chassis.serial_number),
-            )
-            if value is None
-        ]
-        status = AssessmentStatus.WARNING if missing else AssessmentStatus.PASS
-        message = (
-            "Chassis identity is complete in show inventory."
-            if not missing
-            else "Chassis inventory is missing " + " and ".join(missing) + "."
+        members = tuple(
+            (index, record)
+            for index, record in enumerate(model.records)
+            if record.component_type is HardwareComponentType.CHASSIS_MEMBER
         )
+        if not members:
+            return RuleDecision(
+                status=AssessmentStatus.ERROR,
+                message="No chassis_member record was observed in hardware inventory.",
+                evidence=_component_type_evidence(model),
+            )
+
+        evidence: list[EvidenceRequest] = []
+        incomplete: list[str] = []
+        for index, record in members:
+            evidence.extend(
+                (
+                    EvidenceRequest(
+                        field_path=_record_field_path(index, "component_type"),
+                        observed_value=record.component_type.value,
+                    ),
+                    EvidenceRequest(
+                        field_path=_record_field_path(index, "pid"),
+                        observed_value=record.pid,
+                    ),
+                    EvidenceRequest(
+                        field_path=_record_field_path(index, "serial_number"),
+                        observed_value=record.serial_number,
+                    ),
+                )
+            )
+            missing = tuple(
+                label
+                for label, value in (
+                    ("PID", record.pid),
+                    ("serial number", record.serial_number),
+                )
+                if value is None
+            )
+            if missing:
+                incomplete.append(f"{record.id} ({record.name}): {', '.join(missing)}")
+
         return RuleDecision(
-            status=status,
-            message=message,
-            evidence=(
-                EvidenceRequest(field_path="chassis.pid", observed_value=model.chassis.pid),
-                EvidenceRequest(
-                    field_path="chassis.serial_number",
-                    observed_value=model.chassis.serial_number,
-                ),
+            status=AssessmentStatus.WARNING if incomplete else AssessmentStatus.PASS,
+            message=(
+                "Chassis identity is complete for all "
+                f"{len(members)} observed chassis member(s)."
+                if not incomplete
+                else "Chassis member identity is incomplete: " + "; ".join(incomplete) + "."
             ),
+            evidence=tuple(evidence),
         )
 
 
 class UniqueInventorySerialsRule:
-    """Detect duplicate non-empty serial numbers in one inventory snapshot."""
+    """Detect duplicate populated serial numbers across all physical records."""
 
     _metadata = RuleMetadata(
         rule_id="HW-002",
         version="0.1.0",
         title="Unique hardware serial numbers",
-        description="Checks that populated serial numbers are not duplicated across inventory records.",
+        description=(
+            "Checks that populated serial numbers are not duplicated across inventory records."
+        ),
         category=RuleCategory.SYSTEM,
         severity=FindingSeverity.LOW,
         normalized_model="HardwareInventory",
         supported_platforms=_IOS_PLATFORMS,
-        evidence_fields=("components", "modules", "chassis.serial_number"),
+        required_fields=("records",),
+        evidence_fields=("records",),
         missing_data_status=AssessmentStatus.INFO,
         recommendation="Review duplicated inventory records and confirm physical asset identity.",
     )
@@ -89,12 +138,13 @@ class UniqueInventorySerialsRule:
 
     def evaluate(self, model: HardwareInventory, context: AssessmentContext) -> RuleDecision:
         del context
-        serials = [
-            item.serial_number
-            for item in model.all_components
-            if item.serial_number is not None
-        ]
-        duplicates = sorted({serial for serial in serials if serials.count(serial) > 1})
+        populated = tuple(
+            (index, record.serial_number)
+            for index, record in enumerate(model.records)
+            if record.serial_number is not None
+        )
+        counts = Counter(serial for _, serial in populated)
+        duplicates = tuple(sorted(serial for serial, count in counts.items() if count > 1))
         return RuleDecision(
             status=AssessmentStatus.WARNING if duplicates else AssessmentStatus.PASS,
             message=(
@@ -102,21 +152,18 @@ class UniqueInventorySerialsRule:
                 if duplicates
                 else "No duplicate populated hardware serial numbers were observed."
             ),
-            evidence=(
+            evidence=tuple(
                 EvidenceRequest(
-                    field_path="components",
-                    observed_value=[item.model_dump(mode="json") for item in model.components],
-                ),
-                EvidenceRequest(
-                    field_path="modules",
-                    observed_value=[item.model_dump(mode="json") for item in model.modules],
-                ),
+                    field_path=_record_field_path(index, "serial_number"),
+                    observed_value=serial,
+                )
+                for index, serial in populated
             ),
         )
 
 
 class HardwareInventoryObservedRule:
-    """Record the number of physical inventory records for downstream review."""
+    """Record the number of canonical physical inventory records."""
 
     _metadata = RuleMetadata(
         rule_id="HW-003",
@@ -127,8 +174,8 @@ class HardwareInventoryObservedRule:
         severity=FindingSeverity.INFO,
         normalized_model="HardwareInventory",
         supported_platforms=_IOS_PLATFORMS,
-        required_fields=("chassis",),
-        evidence_fields=("chassis", "modules", "components"),
+        required_fields=("records",),
+        evidence_fields=("records",),
         missing_data_status=AssessmentStatus.ERROR,
         recommendation="Use the normalized inventory as the baseline for asset and lifecycle review.",
     )
@@ -139,24 +186,11 @@ class HardwareInventoryObservedRule:
 
     def evaluate(self, model: HardwareInventory, context: AssessmentContext) -> RuleDecision:
         del context
-        count = len(model.all_components)
+        count = len(model.records)
         return RuleDecision(
             status=AssessmentStatus.INFO,
             message=f"Normalized hardware inventory contains {count} physical record(s).",
-            evidence=(
-                EvidenceRequest(
-                    field_path="chassis",
-                    observed_value=None if model.chassis is None else model.chassis.model_dump(mode="json"),
-                ),
-                EvidenceRequest(
-                    field_path="modules",
-                    observed_value=[item.model_dump(mode="json") for item in model.modules],
-                ),
-                EvidenceRequest(
-                    field_path="components",
-                    observed_value=[item.model_dump(mode="json") for item in model.components],
-                ),
-            ),
+            evidence=_component_type_evidence(model),
         )
 
 
@@ -168,6 +202,6 @@ HARDWARE_INVENTORY_RULES = (
 
 
 def hardware_inventory_rule_catalog() -> RuleCatalog[HardwareInventory]:
-    """Return the immutable HardwareInventory v0.1 rule catalog."""
+    """Return the immutable HardwareInventory v0.2 rule catalog."""
 
     return RuleCatalog[HardwareInventory](HARDWARE_INVENTORY_RULES)
