@@ -200,13 +200,15 @@ def _legacy_view(record: HardwareInventoryRecord) -> HardwareComponent:
 class HardwareInventory(BaseModel):
     """Hardware Inventory normalized contract v0.2.
 
-    ``records`` is the only canonical collection. Parent relationships are
-    optional and must be explicit: ``None`` means source evidence did not prove
-    membership. No RAW text, parser metadata or source line numbers live here.
+    ``records`` is the only canonical serialized collection. Parent relationships
+    are optional and must be explicit: ``None`` means source evidence did not
+    prove membership. No RAW text, parser metadata or source line numbers live
+    here.
 
-    The v0.1 ``chassis/modules/components`` input and properties are a temporary
-    non-serialized migration bridge. They intentionally do not infer richer
-    v0.2 types: legacy MODULE/COMPONENT records become ``other``.
+    The excluded ``chassis`` field plus ``modules/components`` properties are a
+    temporary v0.1 bridge for unchanged Engine/Rules/Reporting code. ``chassis``
+    is always re-derived from ``records`` and cannot be independent canonical
+    state. Legacy MODULE/COMPONENT inputs become ``other`` and receive no parent.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -215,6 +217,7 @@ class HardwareInventory(BaseModel):
     vendor: Literal["Cisco"] = "Cisco"
     platform: PlatformFamily
     records: tuple[HardwareInventoryRecord, ...] = Field(min_length=1)
+    chassis: HardwareComponent | None = Field(default=None, exclude=True, repr=False)
 
     def __init__(
         self,
@@ -344,6 +347,15 @@ class HardwareInventory(BaseModel):
                 seen.add(current)
                 current = parent_by_id[current]
 
+        legacy_chassis = next(
+            (
+                _legacy_view(record)
+                for record in self.records
+                if record.component_type is HardwareComponentType.CHASSIS_MEMBER
+            ),
+            None,
+        )
+        object.__setattr__(self, "chassis", legacy_chassis)
         return self
 
     @property
@@ -383,12 +395,6 @@ class HardwareInventory(BaseModel):
         if member.component_type is not HardwareComponentType.CHASSIS_MEMBER:
             raise ValueError(f"{member_id!r} does not reference a chassis_member")
         return self.children_of(member_id)
-
-    @property
-    def chassis(self) -> HardwareComponent | None:
-        """Temporary v0.1 view: first member only; not part of serialization."""
-
-        return None if not self.members else _legacy_view(self.members[0])
 
     @property
     def modules(self) -> tuple[HardwareComponent, ...]:
