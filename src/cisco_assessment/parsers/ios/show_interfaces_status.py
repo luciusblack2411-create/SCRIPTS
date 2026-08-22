@@ -176,9 +176,9 @@ class IOSShowInterfacesStatusParser(BaseParser[InterfaceObservation]):
         try:
             parser_module = import_module(parser_module_name)
             common_module = import_module("genie.libs.parser.utils.common")
-            genie_parser_type = getattr(parser_module, "ShowInterfacesStatus")
-            common_type = getattr(common_module, "Common")
-        except (ImportError, AttributeError) as exc:
+            genie_parser_type = vars(parser_module)["ShowInterfacesStatus"]
+            common_type = vars(common_module)["Common"]
+        except (ImportError, KeyError) as exc:
             raise UnrecognizedFormatError(
                 "Genie spike dependencies are not installed; install the isolated spike requirements"
             ) from exc
