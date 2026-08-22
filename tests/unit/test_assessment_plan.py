@@ -9,6 +9,8 @@ from cisco_assessment.runner import (
     SHOW_VERSION_PLAN_V0_2,
     AssessmentPlan,
     AssessmentPlanItem,
+    ProductiveAssessmentPlanId,
+    resolve_productive_assessment_plan,
 )
 
 
@@ -36,6 +38,19 @@ def test_productive_hardware_inventory_plan_runs_version_then_inventory() -> Non
         CommandId.SYSTEM_INVENTORY,
     )
     assert SHOW_VERSION_PLAN_V0_2.command_ids == (CommandId.SYSTEM_VERSION,)
+
+
+def test_productive_plan_registry_resolves_only_whitelisted_plans() -> None:
+    assert (
+        resolve_productive_assessment_plan(ProductiveAssessmentPlanId.SHOW_VERSION)
+        is SHOW_VERSION_PLAN_V0_2
+    )
+    assert (
+        resolve_productive_assessment_plan(ProductiveAssessmentPlanId.HARDWARE_INVENTORY)
+        is HARDWARE_INVENTORY_PLAN_V0_1
+    )
+    with pytest.raises(ValueError):
+        ProductiveAssessmentPlanId("show inventory")
 
 
 def test_assessment_plan_rejects_duplicate_commands() -> None:
