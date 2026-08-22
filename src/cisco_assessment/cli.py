@@ -112,12 +112,12 @@ def assess(
     try:
         result = runner.run(device=device, credentials=credentials)
     except AssessmentRunnerError as exc:
-        payload = {
+        failure_payload: dict[str, object] = {
             "status": exc.run.status.value,
             "assessment_run_id": str(exc.run.id),
             "error": exc.failure.as_dict(),
         }
-        typer.echo(json.dumps(payload, indent=2, sort_keys=True), err=True)
+        typer.echo(json.dumps(failure_payload, indent=2, sort_keys=True), err=True)
         raise typer.Exit(code=1) from exc
 
     raw_paths = [
@@ -125,13 +125,13 @@ def assess(
         for item in result.collection.commands
         if item.raw_path is not None
     ]
-    payload = {
+    success_payload: dict[str, object] = {
         "status": result.run.status.value,
         "assessment_run_id": str(result.run.id),
         "report_path": str(result.report_path),
         "raw_paths": raw_paths,
     }
-    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+    typer.echo(json.dumps(success_payload, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
