@@ -1,7 +1,11 @@
 # Genie interface-status spike only.
 #
-# Use the smallest single top-level Cisco distribution that provides the Genie
-# core plus the parser library through normal dependency resolution. Do not use
-# --no-deps here: this spike intentionally measures the officially resolvable
-# dependency footprint before attempting later optimization/isolation.
+# Smallest top-level set observed to be necessary for a normally resolved,
+# supportable runtime:
+# - genie provides the Genie core plus genie.libs.parser;
+# - pyats provides the pyATS runtime imported by genie.metaparser.
+#
+# Do not use --no-deps here. The spike intentionally measures the complete
+# resolver-selected footprint before any later dependency optimization.
 genie==26.6
+pyats==26.6
