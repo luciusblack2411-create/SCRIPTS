@@ -1,0 +1,198 @@
+"""Build canonical reports from assessment-domain results without re-evaluating rules."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from uuid import NAMESPACE_URL, UUID, uuid5
+
+from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
+from cisco_assessment.assessment.evidence import FindingEvidence, SourceTrace
+from cisco_assessment.assessment.models import AssessmentResult, Finding, RuleOutcome
+from cisco_assessment.models import AssessmentRun, DeviceInfo
+from cisco_assessment.models.base import utc_now
+
+from .errors import ReportBuildError
+from .models import (
+    AssessmentReport,
+    AssessmentRunReport,
+    AssessmentSummary,
+    DeviceInfoReport,
+    EvidenceReport,
+    FindingReport,
+    ReportMetadata,
+    RuleOutcomeReport,
+    RuleReferenceReport,
+    SourceTraceReport,
+    TargetSnapshotReport,
+)
+
+
+class AssessmentReportBuilder:
+    """Map AssessmentRun + AssessmentResult into the renderer-agnostic report contract."""
+
+    def build(
+        self,
+        *,
+        run: AssessmentRun,
+        result: AssessmentResult,
+        device_info: DeviceInfo,
+        generated_at: datetime | None = None,
+        report_id: UUID | None = None,
+    ) -> AssessmentReport:
+        """Build one canonical report while validating cross-layer identity references."""
+        self._validate_inputs(run=run, result=result, device_info=device_info)
+
+        status_counts = {status: 0 for status in AssessmentStatus}
+        for outcome in result.outcomes:
+            status_counts[outcome.status] += 1
+
+        severity_counts = {severity: 0 for severity in FindingSeverity}
+        for finding in result.findings:
+            severity_counts[finding.severity] += 1
+
+        return AssessmentReport(
+            metadata=ReportMetadata(
+                report_id=report_id
+                or uuid5(NAMESPACE_URL, f"cisco-assessment-report:{run.id}"),
+                generated_at=generated_at or run.finished_at or utc_now(),
+                generator_version=run.framework_version,
+            ),
+            run=AssessmentRunReport(
+                assessment_run_id=run.id,
+                device_id=run.device_id,
+                framework_version=run.framework_version,
+                started_at=run.started_at,
+                finished_at=run.finished_at,
+                status=run.status,
+                command_catalog_version=run.command_catalog_version,
+                ruleset_version=run.ruleset_version,
+            ),
+            target=TargetSnapshotReport(
+                management_address=run.target_snapshot.management_address,
+                hostname=run.target_snapshot.hostname,
+                platform_family=run.target_snapshot.platform_family,
+            ),
+            device_info=DeviceInfoReport(
+                schema_version=device_info.schema_version,
+                vendor=device_info.vendor,
+                platform=device_info.platform,
+                hostname=device_info.hostname,
+                software_version=device_info.software_version,
+                model=device_info.model,
+                serial_number=device_info.serial_number,
+                system_image=device_info.system_image,
+                uptime_text=device_info.uptime_text,
+                boot_mode=device_info.boot_mode,
+            ),
+            summary=AssessmentSummary(
+                rules_evaluated=len(result.outcomes),
+                findings_total=len(result.findings),
+                outcome_status_counts=status_counts,
+                finding_severity_counts=severity_counts,
+            ),
+            outcomes=tuple(self._map_outcome(outcome) for outcome in result.outcomes),
+            findings=tuple(
+                self._map_finding(finding=finding, device_id=result.device_id)
+                for finding in result.findings
+            ),
+        )
+
+    @staticmethod
+    def _validate_inputs(
+        *,
+        run: AssessmentRun,
+        result: AssessmentResult,
+        device_info: DeviceInfo,
+    ) -> None:
+        if result.assessment_run_id != run.id:
+            raise ReportBuildError("AssessmentResult assessment_run_id does not match AssessmentRun")
+        if result.device_id != run.device_id:
+            raise ReportBuildError("AssessmentResult device_id does not match AssessmentRun")
+        if result.platform != device_info.platform:
+            raise ReportBuildError("AssessmentResult platform does not match DeviceInfo platform")
+        if result.normalized_model != type(device_info).__name__:
+            raise ReportBuildError("AssessmentResult normalized_model does not match DeviceInfo")
+
+        for evidence in AssessmentReportBuilder._all_evidence(result):
+            for source in evidence.sources:
+                if source.assessment_run_id != run.id:
+                    raise ReportBuildError(
+                        "Evidence SourceTrace assessment_run_id does not match AssessmentRun"
+                    )
+
+    @staticmethod
+    def _all_evidence(result: AssessmentResult) -> tuple[FindingEvidence, ...]:
+        return tuple(
+            evidence
+            for outcome in result.outcomes
+            for evidence in outcome.evidence
+        ) + tuple(
+            evidence
+            for finding in result.findings
+            for evidence in finding.evidence
+        )
+
+    @staticmethod
+    def _map_source(source: SourceTrace) -> SourceTraceReport:
+        return SourceTraceReport(
+            assessment_run_id=source.assessment_run_id,
+            command_execution_id=source.command_execution_id,
+            raw_output_id=source.raw_output_id,
+            raw_sha256=source.raw_sha256,
+            parser_id=source.parser_id,
+            parser_version=source.parser_version,
+            platform=source.platform,
+            extractor=source.extractor,
+            line_start=source.line_start,
+            line_end=source.line_end,
+        )
+
+    @classmethod
+    def _map_evidence(cls, evidence: FindingEvidence) -> EvidenceReport:
+        return EvidenceReport(
+            normalized_model=evidence.normalized_model,
+            field_path=evidence.field_path,
+            observed_value=evidence.observed_value,
+            sources=tuple(cls._map_source(source) for source in evidence.sources),
+        )
+
+    @classmethod
+    def _map_outcome(cls, outcome: RuleOutcome) -> RuleOutcomeReport:
+        return RuleOutcomeReport(
+            rule=RuleReferenceReport(
+                rule_id=outcome.rule_id,
+                rule_version=outcome.rule_version,
+            ),
+            title=outcome.title,
+            category=outcome.category,
+            normalized_model=outcome.normalized_model,
+            status=outcome.status,
+            severity=outcome.severity,
+            message=outcome.message,
+            evidence=tuple(cls._map_evidence(evidence) for evidence in outcome.evidence),
+            recommendation=outcome.recommendation,
+            reason_code=outcome.reason_code,
+            error_type=outcome.error_type,
+            error_message=outcome.error_message,
+        )
+
+    @classmethod
+    def _map_finding(cls, *, finding: Finding, device_id: UUID) -> FindingReport:
+        return FindingReport(
+            finding_id=finding.finding_id,
+            device_id=device_id,
+            rule=RuleReferenceReport(
+                rule_id=finding.rule_id,
+                rule_version=finding.rule_version,
+            ),
+            title=finding.title,
+            description=finding.description,
+            category=finding.category,
+            normalized_model=finding.normalized_model,
+            status=finding.status,
+            severity=finding.severity,
+            evidence=tuple(cls._map_evidence(evidence) for evidence in finding.evidence),
+            recommendation=finding.recommendation,
+            error_type=finding.error_type,
+            error_message=finding.error_message,
+        )
