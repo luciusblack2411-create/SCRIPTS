@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any
 
 from cisco_assessment.catalog.enums import CommandId, NormalizedModelId, ParserId
@@ -167,28 +168,26 @@ class IOSShowInterfacesStatusParser(BaseParser[InterfaceObservation]):
         content: str,
         platform: PlatformFamily,
     ) -> tuple[dict[str, Any], Any]:
+        parser_module_name = (
+            "genie.libs.parser.ios.show_interface"
+            if platform is PlatformFamily.IOS
+            else "genie.libs.parser.iosxe.show_interface"
+        )
         try:
-            if platform is PlatformFamily.IOS:
-                from genie.libs.parser.ios.show_interface import (  # type: ignore[import-not-found,import-untyped]
-                    ShowInterfacesStatus as GenieShowInterfacesStatus,
-                )
-            else:
-                from genie.libs.parser.iosxe.show_interface import (  # type: ignore[import-not-found,import-untyped]
-                    ShowInterfacesStatus as GenieShowInterfacesStatus,
-                )
-            from genie.libs.parser.utils.common import (
-                Common,  # type: ignore[import-not-found,import-untyped]
-            )
-        except ImportError as exc:
+            parser_module = import_module(parser_module_name)
+            common_module = import_module("genie.libs.parser.utils.common")
+            genie_parser_type = getattr(parser_module, "ShowInterfacesStatus")
+            common_type = getattr(common_module, "Common")
+        except (ImportError, AttributeError) as exc:
             raise UnrecognizedFormatError(
                 "Genie spike dependencies are not installed; install the isolated spike requirements"
             ) from exc
 
-        parser = GenieShowInterfacesStatus(device=None)
+        parser = genie_parser_type(device=None)
         parsed = parser.cli(output=content)
         if not isinstance(parsed, dict):
             raise UnrecognizedFormatError("Genie returned a non-dictionary result")
-        return parsed, Common.convert_intf_name
+        return parsed, common_type.convert_intf_name
 
     @staticmethod
     def _index_raw_rows(content: str, convert_intf_name: Any) -> tuple[_RawInterfaceRow, ...]:
