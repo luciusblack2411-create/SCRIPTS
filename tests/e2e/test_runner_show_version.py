@@ -8,7 +8,12 @@ import pytest
 from cisco_assessment.assessment import AssessmentStatus
 from cisco_assessment.collector.exceptions import AuthenticationError
 from cisco_assessment.collector.transport import SSHCredentials
-from cisco_assessment.models import AssessmentRunStatus, CommandExecutionStatus, Device, PlatformFamily
+from cisco_assessment.models import (
+    AssessmentRunStatus,
+    CommandExecutionStatus,
+    Device,
+    PlatformFamily,
+)
 from cisco_assessment.runner import AssessmentRunnerError, RunnerStage, build_runner
 
 _FIXTURE = Path(__file__).parents[1] / "fixtures" / "ios" / "show_version" / "c9300_iosxe.txt"
