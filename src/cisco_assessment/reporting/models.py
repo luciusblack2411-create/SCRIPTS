@@ -6,11 +6,20 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, NonNegativeInt, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    NonNegativeInt,
+    PositiveInt,
+    field_validator,
+)
 
 from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
 from cisco_assessment.models.base import normalize_utc
 from cisco_assessment.models.enums import AssessmentRunStatus, PlatformFamily
+from cisco_assessment.models.normalized import HardwareComponentType
 
 REPORT_SCHEMA_VERSION: Literal["0.1"] = "0.1"
 
@@ -71,23 +80,28 @@ class DeviceInfoReport(ReportModel):
     boot_mode: str | None
 
 
-class HardwareComponentReport(ReportModel):
+class HardwareInventoryRecordReport(ReportModel):
+    """Canonical report representation of one HardwareInventory v0.2 record."""
+
+    ordinal: PositiveInt
+    id: str = Field(pattern=r"^hw:\d{4,}$")
     name: str
     description: str | None
     pid: str | None
     vid: str | None
     serial_number: str | None
-    kind: str
+    component_type: HardwareComponentType
+    parent_id: str | None = Field(default=None, pattern=r"^hw:\d{4,}$")
 
 
 class HardwareInventoryReport(ReportModel):
+    """Canonical HardwareInventory v0.2 report view in physical RAW order."""
+
     normalized_model: Literal["HardwareInventory"] = "HardwareInventory"
     schema_version: str
     vendor: str
     platform: PlatformFamily
-    chassis: HardwareComponentReport | None = None
-    modules: tuple[HardwareComponentReport, ...] = ()
-    components: tuple[HardwareComponentReport, ...] = ()
+    records: tuple[HardwareInventoryRecordReport, ...]
 
 
 class RuleReferenceReport(ReportModel):
