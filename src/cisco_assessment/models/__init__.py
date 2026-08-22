@@ -7,8 +7,6 @@ from .execution import CommandExecution
 from .normalized import (
     HARDWARE_INVENTORY_SCHEMA_VERSION,
     DeviceInfo,
-    HardwareComponent,
-    HardwareComponentKind,
     HardwareComponentType,
     HardwareInventory,
     HardwareInventoryRecord,
@@ -25,8 +23,6 @@ __all__ = [
     "Device",
     "DeviceInfo",
     "DeviceSnapshot",
-    "HardwareComponent",
-    "HardwareComponentKind",
     "HardwareComponentType",
     "HardwareInventory",
     "HardwareInventoryRecord",
