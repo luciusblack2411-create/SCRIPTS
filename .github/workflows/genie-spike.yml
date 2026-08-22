@@ -24,18 +24,18 @@ jobs:
       - name: Install project test dependencies
         run: python -m pip install -e '.[dev]'
 
-      - name: Install Genie and pyATS cores without ecosystem dependencies
+      - name: Install Genie and pyATS parser cores without ecosystems
         run: >-
           python -m pip install --no-deps
           'genie==26.6'
           'genie.libs.parser==26.6'
           'pyats==26.6'
-
-      - name: Install parser runtime imports only
-        run: >-
-          python -m pip install
           'pyats.log==26.6'
           'pyats.utils==26.6'
+
+      - name: Install non-framework parser imports
+        run: >-
+          python -m pip install
           'xmltodict>=0.13,<1'
           'packaging>=24,<26'
 
