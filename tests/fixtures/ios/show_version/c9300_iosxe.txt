@@ -1,0 +1,16 @@
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.9.4a, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2023 by Cisco Systems, Inc.
+
+SW-CORE-01 uptime is 14 weeks, 2 days, 3 hours, 17 minutes
+Uptime for this control processor is 14 weeks, 2 days, 3 hours, 18 minutes
+System returned to ROM by Reload Command
+System image file is "flash:packages.conf"
+
+cisco C9300-48P (X86) processor with 1397760K/6147K bytes of memory.
+Processor board ID FCW0000A1B2
+
+Switch Ports Model              SW Version        SW Image              Mode
+------ ----- -----              ----------        ----------            ----
+*    1 48    C9300-48P          17.09.04a         CAT9K_IOSXE           INSTALL
