@@ -33,6 +33,7 @@ jobs:
           'pyats.log==26.6'
           'pyats.utils==26.6'
           'pyats.easypy==26.6'
+          'pyats.datastructures==26.6'
           'unicon==26.6'
           'unicon.plugins==26.6'
 
