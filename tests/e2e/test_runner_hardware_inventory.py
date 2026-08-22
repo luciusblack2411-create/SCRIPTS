@@ -103,8 +103,7 @@ def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_
     assert hardware_parse.trace.command_execution_id == inventory_execution.id
     assert hardware_parse.trace.raw_output_id == inventory_raw.id
     assert hardware_parse.trace.raw_sha256 == inventory_raw.sha256
-    assert hardware_parse.data.chassis is not None
-    assert hardware_parse.data.chassis.pid == "C9300-48P"
+    assert hardware_parse.data.records[0].pid == "C9300-48P"
 
     rule_ids = {outcome.rule_id for outcome in result.assessment_result.outcomes}
     assert {"HW-001", "HW-002", "HW-003"}.issubset(rule_ids)
@@ -129,7 +128,9 @@ def test_hardware_inventory_vertical_slice_preserves_independent_raw_and_report_
 
     hw001 = next(item for item in payload["outcomes"] if item["rule"]["rule_id"] == "HW-001")
     serial_evidence = next(
-        item for item in hw001["evidence"] if item["field_path"] == "chassis.serial_number"
+        item
+        for item in hw001["evidence"]
+        if item["field_path"] == "records[0].serial_number"
     )
     source = serial_evidence["sources"][0]
     assert source["command_execution_id"] == str(inventory_execution.id)
