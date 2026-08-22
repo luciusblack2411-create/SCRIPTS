@@ -5,7 +5,12 @@ from pathlib import Path
 
 from cisco_assessment.catalog import CommandId, NormalizedModelId
 from cisco_assessment.collector.transport import SSHCredentials
-from cisco_assessment.models import AssessmentRunStatus, CommandExecutionStatus, Device, PlatformFamily
+from cisco_assessment.models import (
+    AssessmentRunStatus,
+    CommandExecutionStatus,
+    Device,
+    PlatformFamily,
+)
 from cisco_assessment.runner import HARDWARE_INVENTORY_PLAN_V0_1, build_runner
 
 _FIXTURES = Path(__file__).parents[1] / "fixtures" / "ios"
