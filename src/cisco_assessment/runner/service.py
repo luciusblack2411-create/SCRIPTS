@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, NoReturn, cast
+from typing import NoReturn, cast
 from uuid import UUID
 
 from cisco_assessment.assessment import (
@@ -134,10 +134,7 @@ class AssessmentRunner:
                 exc=exc,
             )
 
-        collected_by_key = {
-            item.execution.command_key: item
-            for item in collection.commands
-        }
+        collected_by_key = {item.execution.command_key: item for item in collection.commands}
         command_results: list[AssessmentCommandResult] = []
         optional_failure = False
         partial_parse = False
@@ -474,33 +471,36 @@ class AssessmentRunner:
         device: Device,
         command_results: tuple[AssessmentCommandResult, ...],
     ) -> AssessmentContext:
-        source_evidence = tuple(
-            NormalizedFieldSource(
-                normalized_model=parse_result.trace.normalized_model.value,
-                field_path=item.field,
-                source=SourceTrace(
-                    assessment_run_id=parse_result.trace.assessment_run_id,
-                    command_execution_id=parse_result.trace.command_execution_id,
-                    raw_output_id=parse_result.trace.raw_output_id,
-                    raw_sha256=parse_result.trace.raw_sha256,
-                    parser_id=parse_result.trace.parser_id.value,
-                    parser_version=parse_result.trace.parser_version,
-                    platform=parse_result.trace.platform,
-                    extractor=item.extractor,
-                    line_start=item.line_start,
-                    line_end=item.line_end,
-                ),
-            )
-            for command_result in command_results
-            if command_result.parse_result is not None
-            for parse_result in (command_result.parse_result,)
-            for item in parse_result.evidence
-        )
+        source_evidence: list[NormalizedFieldSource] = []
+        for command_result in command_results:
+            parse_result = command_result.parse_result
+            if parse_result is None:
+                continue
+            trace = parse_result.trace
+            for item in parse_result.evidence:
+                source_evidence.append(
+                    NormalizedFieldSource(
+                        normalized_model=trace.normalized_model.value,
+                        field_path=item.field,
+                        source=SourceTrace(
+                            assessment_run_id=trace.assessment_run_id,
+                            command_execution_id=trace.command_execution_id,
+                            raw_output_id=trace.raw_output_id,
+                            raw_sha256=trace.raw_sha256,
+                            parser_id=trace.parser_id.value,
+                            parser_version=trace.parser_version,
+                            platform=trace.platform,
+                            extractor=item.extractor,
+                            line_start=item.line_start,
+                            line_end=item.line_end,
+                        ),
+                    )
+                )
         return AssessmentContext(
             assessment_run_id=run.id,
             device_id=device.id,
             platform=device.platform_family,
-            source_evidence=source_evidence,
+            source_evidence=tuple(source_evidence),
         )
 
     def _persist_report(
