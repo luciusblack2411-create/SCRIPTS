@@ -6,6 +6,7 @@ from collections.abc import Iterable
 
 from cisco_assessment.devtools.pr_review.architecture import evaluate_architecture_safety_checks
 from cisco_assessment.devtools.pr_review.check_ids import ReviewCheckId
+from cisco_assessment.devtools.pr_review.ci_provenance import evaluate_ci_merge_provenance
 from cisco_assessment.devtools.pr_review.contract_ci import evaluate_contract_quality_ci_checks
 from cisco_assessment.devtools.pr_review.decision import derive_review_decision
 from cisco_assessment.devtools.pr_review.enums import ReviewFindingSeverity
@@ -43,6 +44,7 @@ def build_review_report(request: ReviewRequest, context: PullRequestContext) -> 
         *evaluate_scope_checks(request, context),
         *evaluate_architecture_safety_checks(context),
         *evaluate_contract_quality_ci_checks(request, context),
+        evaluate_ci_merge_provenance(request, context),
     )
     findings = tuple(finding for check in checks for finding in check.findings)
     decision = derive_review_decision(checks, findings)
