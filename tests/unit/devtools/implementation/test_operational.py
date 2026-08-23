@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from cisco_assessment.devtools.implementation import operational
 from cisco_assessment.devtools.implementation import (
     ComponentId,
     ImplementationAuthorization,
@@ -24,6 +23,7 @@ from cisco_assessment.devtools.implementation import (
     ImplementationWorkspace,
     execute_implementation_operation,
     load_implementation_operation,
+    operational,
     render_implementation_result_human,
     render_implementation_result_json,
 )
