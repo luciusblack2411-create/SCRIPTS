@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -151,9 +151,7 @@ class GitHubReadyForReviewBackend:
             ),
             "GraphQL response",
         )
-        errors = payload.get("errors")
-        if errors is not None:
-            raise GitHubReadyForReviewError("GitHub GraphQL returned errors for Ready-for-Review")
+        _raise_graphql_errors(payload.get("errors"))
         data = _require_mapping(payload.get("data"), "data")
         mutation = _require_mapping(
             data.get("markPullRequestReadyForReview"),
@@ -179,6 +177,47 @@ class GitHubReadyForReviewBackend:
             return self._transport.post_graphql(query, variables)
         except GitHubRestError as exc:
             raise GitHubReadyForReviewError(str(exc), status_code=exc.status_code) from exc
+
+
+def _raise_graphql_errors(errors: object) -> None:
+    """Raise one deterministic sanitized error from GraphQL error metadata only."""
+    if errors is None:
+        return
+    if isinstance(errors, (str, bytes)) or not isinstance(errors, Sequence):
+        raise GitHubReadyForReviewError("GitHub GraphQL errors payload must be an array")
+    if not errors:
+        return
+
+    summaries: list[str] = []
+    for index, item in enumerate(errors):
+        if not isinstance(item, Mapping):
+            raise GitHubReadyForReviewError(
+                f"GitHub GraphQL errors[{index}] must be an object"
+            )
+        message = item.get("message")
+        if not isinstance(message, str) or not message:
+            raise GitHubReadyForReviewError(
+                f"GitHub GraphQL errors[{index}].message must be a non-empty string"
+            )
+        error_type: str | None = None
+        extensions = item.get("extensions")
+        if extensions is not None:
+            if not isinstance(extensions, Mapping):
+                raise GitHubReadyForReviewError(
+                    f"GitHub GraphQL errors[{index}].extensions must be an object"
+                )
+            raw_type = extensions.get("type")
+            if raw_type is not None:
+                if not isinstance(raw_type, str) or not raw_type:
+                    raise GitHubReadyForReviewError(
+                        f"GitHub GraphQL errors[{index}].extensions.type must be a string"
+                    )
+                error_type = raw_type
+        summaries.append(f"{error_type}: {message}" if error_type is not None else message)
+
+    raise GitHubReadyForReviewError(
+        "GitHub GraphQL Ready-for-Review rejected: " + " | ".join(summaries)
+    )
 
 
 def _repo_path(repository: str) -> str:
