@@ -268,7 +268,7 @@ def _validate_workspace_inputs(
             )
         if source_file.blob_sha != context_file.blob_sha:
             raise ImplementationWorkspaceError(
-                f"source inspection path {source_file.path!r} blob does not match context evidence"
+                f"source blob for inspection path {source_file.path!r} does not match context evidence"
             )
         if source_file.component is not context_file.component:
             raise ImplementationWorkspaceError(
