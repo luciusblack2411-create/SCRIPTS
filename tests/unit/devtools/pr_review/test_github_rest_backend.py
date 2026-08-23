@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from email.message import Message
+from urllib.request import HTTPRedirectHandler, Request
 
 import pytest
 
-from cisco_assessment.devtools.pr_review import GitHubRestError, GitHubRestReadBackend
+from cisco_assessment.devtools.pr_review import (
+    GitHubRestError,
+    GitHubRestReadBackend,
+    UrllibGitHubTransport,
+)
+from cisco_assessment.devtools.pr_review import github_rest
 
 
 class FakeTransport:
@@ -215,6 +222,53 @@ def test_checkout_provenance_rejects_non_merge_checkout() -> None:
 
     assert provenance is None
     assert transport.text_calls == [(logs_path, "application/vnd.github+json")]
+
+
+def test_authorization_is_not_forwarded_by_urllib_redirects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[Request] = []
+
+    class FakeResponse:
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"log-content"
+
+    def fake_urlopen(request: Request, *, timeout: float) -> FakeResponse:
+        requests.append(request)
+        assert timeout == 20.0
+        return FakeResponse()
+
+    monkeypatch.setattr(github_rest, "urlopen", fake_urlopen)
+
+    content = UrllibGitHubTransport(token="secret-token").get_text(
+        "/repos/owner/repo/actions/jobs/971/logs",
+        accept="application/vnd.github+json",
+    )
+
+    assert content == "log-content"
+    assert len(requests) == 1
+    initial = requests[0]
+    assert initial.get_header("Authorization") == "Bearer secret-token"
+    assert "Authorization" not in initial.headers
+    assert initial.unredirected_hdrs["Authorization"] == "Bearer secret-token"
+
+    redirected = HTTPRedirectHandler().redirect_request(
+        initial,
+        None,
+        302,
+        "Found",
+        Message(),
+        "https://results.example.invalid/signed-job-log",
+    )
+
+    assert redirected is not None
+    assert redirected.get_header("Authorization") is None
 
 
 def test_branch_404_is_observed_as_unavailable_without_inference() -> None:
