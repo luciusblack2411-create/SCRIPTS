@@ -19,6 +19,8 @@ from .models import (
     RuleReferenceReport,
     SourceTraceReport,
     TargetSnapshotReport,
+    VlanObservationReport,
+    VlanRecordReport,
 )
 from .renderers import JsonReportRenderer, ReportRenderer
 
@@ -43,4 +45,6 @@ __all__ = [
     "RuleReferenceReport",
     "SourceTraceReport",
     "TargetSnapshotReport",
+    "VlanObservationReport",
+    "VlanRecordReport",
 ]
