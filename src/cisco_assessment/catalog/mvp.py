@@ -120,7 +120,7 @@ COMMAND_CATALOG_V0_1 = CommandCatalog(
             CommandId.VLANS_BRIEF,
             CommandCategory.VLANS,
             "Collect configured VLAN identifiers, names, states, and access-port membership.",
-            NormalizedModelId.VLAN_INFO,
+            NormalizedModelId.VLAN_OBSERVATION,
             CommandRequirement.REQUIRED,
             "show vlan brief",
             ParserId.IOS_SHOW_VLAN_BRIEF_V1,
