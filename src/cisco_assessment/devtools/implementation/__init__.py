@@ -1,6 +1,15 @@
 """Contracts and readiness logic for Implementation Agent v0.1."""
 
 from ..pr_review import ComponentId
+from .ci_validation import (
+    ImplementationCiBackend,
+    ImplementationCiJobResult,
+    ImplementationCiStatus,
+    ImplementationCiValidationError,
+    ImplementationCiValidationResult,
+    ImplementationOperationalDecision,
+    validate_work_branch_ci,
+)
 from .context import (
     ImplementationContext,
     ImplementationContextError,
@@ -17,6 +26,12 @@ from .enums import (
     ImplementationPlanStepKind,
 )
 from .gate_ids import ImplementationGateId
+from .github_ci import (
+    GitHubImplementationCiBackend,
+    GitHubImplementationCiHttpTransport,
+    ImplementationGitHubCiError,
+    UrllibGitHubImplementationCiTransport,
+)
 from .github_mutation import (
     GitHubImplementationMutationBackend,
     GitHubImplementationMutationHttpTransport,
@@ -37,6 +52,15 @@ from .mutation import (
     ImplementationMutationResult,
     ImplementationMutationTreeEntry,
     execute_work_branch_mutation,
+)
+from .operational import (
+    ImplementationOperation,
+    ImplementationOperationalResult,
+    ImplementationOperationFileError,
+    execute_implementation_operation,
+    load_implementation_operation,
+    render_implementation_result_human,
+    render_implementation_result_json,
 )
 from .planning import (
     ImplementationPlan,
@@ -62,10 +86,17 @@ from .workspace import (
 
 __all__ = [
     "ComponentId",
+    "GitHubImplementationCiBackend",
+    "GitHubImplementationCiHttpTransport",
     "GitHubImplementationMutationBackend",
     "GitHubImplementationMutationHttpTransport",
     "GitHubImplementationReadBackend",
     "ImplementationAuthorization",
+    "ImplementationCiBackend",
+    "ImplementationCiJobResult",
+    "ImplementationCiStatus",
+    "ImplementationCiValidationError",
+    "ImplementationCiValidationResult",
     "ImplementationContext",
     "ImplementationContextError",
     "ImplementationContextFile",
@@ -77,6 +108,7 @@ __all__ = [
     "ImplementationGate",
     "ImplementationGateId",
     "ImplementationGateStatus",
+    "ImplementationGitHubCiError",
     "ImplementationGitHubMutationError",
     "ImplementationGitHubRestError",
     "ImplementationMutationBackend",
@@ -84,6 +116,10 @@ __all__ = [
     "ImplementationMutationError",
     "ImplementationMutationResult",
     "ImplementationMutationTreeEntry",
+    "ImplementationOperation",
+    "ImplementationOperationFileError",
+    "ImplementationOperationalDecision",
+    "ImplementationOperationalResult",
     "ImplementationPlan",
     "ImplementationPlanStep",
     "ImplementationPlanStepKind",
@@ -98,11 +134,17 @@ __all__ = [
     "ImplementationSourceReadBackend",
     "ImplementationWorkspace",
     "ImplementationWorkspaceError",
+    "UrllibGitHubImplementationCiTransport",
     "UrllibGitHubImplementationMutationTransport",
     "build_implementation_plan",
     "build_implementation_workspace",
     "evaluate_implementation_readiness",
+    "execute_implementation_operation",
     "execute_work_branch_mutation",
     "inspect_implementation_sources",
     "load_implementation_context",
+    "load_implementation_operation",
+    "render_implementation_result_human",
+    "render_implementation_result_json",
+    "validate_work_branch_ci",
 ]
