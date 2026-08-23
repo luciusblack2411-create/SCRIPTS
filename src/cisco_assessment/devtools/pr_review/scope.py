@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from pathlib import PurePosixPath
+import collections.abc
+import pathlib
 
 from .check_ids import ReviewCheckId
 from .enums import ComponentId, ReviewCheckStatus, ReviewEvidenceKind, ReviewFindingSeverity
@@ -34,7 +34,7 @@ class ChangedFileClassification:
 
 def classify_changed_path(path: str) -> ComponentId:
     """Classify a repository path without inspecting or inferring file contents."""
-    pure_path = PurePosixPath(path)
+    pure_path = pathlib.PurePosixPath(path)
     parts = pure_path.parts
 
     if not parts:
@@ -71,7 +71,7 @@ def classify_changed_path(path: str) -> ComponentId:
     if relative.startswith("runner/") or relative == "cli.py":
         return ComponentId.RUNNER_CLI
     if relative.startswith("assessment/"):
-        filename = PurePosixPath(relative).name
+        filename = pathlib.PurePosixPath(relative).name
         if filename == "rules.py" or filename.endswith("_rules.py"):
             return ComponentId.RULES
         return ComponentId.ENGINE
@@ -80,7 +80,7 @@ def classify_changed_path(path: str) -> ComponentId:
 
 
 def classify_changed_files(
-    changed_files: Iterable[GitHubChangedFile],
+    changed_files: collections.abc.Iterable[GitHubChangedFile],
 ) -> tuple[ChangedFileClassification, ...]:
     """Classify changed files in canonical repository-path order."""
     return tuple(
