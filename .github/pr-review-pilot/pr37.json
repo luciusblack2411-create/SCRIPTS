@@ -1,0 +1,30 @@
+{
+  "repository": "luciusblack2411-create/SCRIPTS",
+  "pr_number": 37,
+  "expected_base_branch": "main",
+  "objective": "Shadow-review PR #37 Reporting-only VlanObservation v0.1 integration using PR_REVIEW_AGENT_V1.",
+  "expected_components": [
+    "REPORTING",
+    "TESTING_FIXTURES"
+  ],
+  "prohibited_components": [
+    "COLLECTOR",
+    "COMMAND_CATALOG",
+    "RAW_MODELS",
+    "NORMALIZED_MODELS",
+    "PARSER",
+    "ENGINE",
+    "RULES",
+    "ASSESSMENT_PLAN",
+    "RUNNER_CLI"
+  ],
+  "expected_contracts": [
+    "VlanObservation v0.1 canonical Reporting JSON"
+  ],
+  "invariants": [
+    "Reporting consumes normalized models and evaluated results only.",
+    "Reporting does not parse Cisco CLI or query devices.",
+    "Collector, Parser, Rules, AssessmentPlan and Runner remain unchanged."
+  ],
+  "require_ci_success": true
+}
