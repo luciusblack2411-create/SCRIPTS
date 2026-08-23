@@ -12,6 +12,7 @@ from cisco_assessment import cli
 from cisco_assessment.models import AssessmentRunStatus, PlatformFamily
 from cisco_assessment.runner import (
     HARDWARE_INVENTORY_PLAN_V0_1,
+    INTERFACE_STATUS_PLAN_V0_1,
     SHOW_VERSION_PLAN_V0_2,
     build_runner,
 )
@@ -113,6 +114,37 @@ def test_assess_cli_defaults_to_show_version_and_uses_hidden_password(
     ]
 
 
+def test_assess_cli_selects_interface_status_productive_plan(monkeypatch, tmp_path: Path) -> None:
+    fake_runner = FakeRunner()
+
+    def fake_builder(**kwargs: object) -> FakeRunner:
+        del kwargs
+        return fake_runner
+
+    monkeypatch.setattr(cli, "build_default_runner", fake_builder)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.app,
+        [
+            "assess",
+            "--host",
+            "192.0.2.10",
+            "--username",
+            "assessment",
+            "--platform",
+            "ios_xe",
+            "--plan",
+            "interface-status",
+            "--use-agent",
+            "--output-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_runner.plan is INTERFACE_STATUS_PLAN_V0_1
+
+
 def test_assess_cli_hardware_inventory_plan_runs_both_productive_commands(
     monkeypatch,
     tmp_path: Path,
@@ -177,7 +209,7 @@ def test_assess_cli_rejects_unlisted_plan_before_building_runner(monkeypatch) ->
             "--username",
             "assessment",
             "--plan",
-            "show inventory",
+            "show interfaces status",
             "--use-agent",
         ],
     )
@@ -187,6 +219,7 @@ def test_assess_cli_rejects_unlisted_plan_before_building_runner(monkeypatch) ->
     output = _ANSI_ESCAPE_RE.sub("", result.output)
     assert "show-version" in output
     assert "hardware-inventory" in output
+    assert "interface-status" in output
 
 
 def test_assess_cli_help_exposes_supported_plans_and_no_free_command_option() -> None:
@@ -201,4 +234,5 @@ def test_assess_cli_help_exposes_supported_plans_and_no_free_command_option() ->
     assert "--plan" in help_output
     assert "show-version" in help_output
     assert "hardware-inventory" in help_output
+    assert "interface-status" in help_output
     assert "--command" not in help_output
