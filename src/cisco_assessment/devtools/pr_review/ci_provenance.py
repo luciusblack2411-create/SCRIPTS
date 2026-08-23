@@ -130,6 +130,15 @@ def _has_complete_provenance(run: GitHubWorkflowRun) -> bool:
     )
 
 
+def _expected_merge_refs(pr_number: int) -> frozenset[str]:
+    return frozenset(
+        {
+            f"refs/pull/{pr_number}/merge",
+            f"refs/remotes/pull/{pr_number}/merge",
+        }
+    )
+
+
 def _is_fresh_merge_checkout(run: GitHubWorkflowRun, context: PullRequestContext) -> bool:
     if not _has_complete_provenance(run) or context.base_branch_head_sha is None:
         return False
@@ -140,7 +149,7 @@ def _is_fresh_merge_checkout(run: GitHubWorkflowRun, context: PullRequestContext
         and run.pull_request_number == context.pr_number
         and run.pull_request_base_sha == context.base_branch_head_sha
         and run.pull_request_head_sha == context.head_sha
-        and checkout.ref == f"refs/pull/{context.pr_number}/merge"
+        and checkout.ref in _expected_merge_refs(context.pr_number)
         and checkout.base_sha == context.base_branch_head_sha
         and checkout.head_sha == context.head_sha
     )
@@ -162,9 +171,10 @@ def _run_evidence(
         f"checkout_base={None if checkout is None else checkout.base_sha};"
         f"checkout_head={None if checkout is None else checkout.head_sha}"
     )
+    expected_refs = ",".join(sorted(_expected_merge_refs(context.pr_number)))
     expected = (
         f"event=pull_request;pr={context.pr_number};base={context.base_branch_head_sha};"
-        f"head={context.head_sha};ref=refs/pull/{context.pr_number}/merge;"
+        f"head={context.head_sha};ref in [{expected_refs}];"
         f"checkout_base={context.base_branch_head_sha};checkout_head={context.head_sha}"
     )
     return ReviewEvidence(
