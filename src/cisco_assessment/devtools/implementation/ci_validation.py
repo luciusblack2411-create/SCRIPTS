@@ -12,6 +12,9 @@ from pydantic import Field, model_validator
 from .models import AGENT_ID, SCHEMA_VERSION, FrozenImplementationModel
 from .mutation import ImplementationMutationResult
 
+APPROVED_CI_WORKFLOW_FILE = "ci.yml"
+WORK_BRANCH_PREFIX = "agent/implementation/"
+
 
 class ImplementationCiValidationError(RuntimeError):
     """Raised when work-branch CI evidence cannot be validated safely."""
@@ -78,7 +81,7 @@ class ImplementationCiValidationResult(FrozenImplementationModel):
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     agent_id: Literal["IMPLEMENTATION_AGENT_V1"] = AGENT_ID
     repository: str = Field(min_length=1)
-    workflow_file: str = Field(min_length=1)
+    workflow_file: Literal["ci.yml"] = "ci.yml"
     base_branch: str = Field(min_length=1)
     base_sha: str = Field(min_length=1)
     work_branch: str = Field(min_length=1)
@@ -97,6 +100,8 @@ class ImplementationCiValidationResult(FrozenImplementationModel):
 
     @model_validator(mode="after")
     def validate_canonical_ci_result(self) -> ImplementationCiValidationResult:
+        if not self.work_branch.startswith(WORK_BRANCH_PREFIX):
+            raise ValueError("CI validation work branch must use agent/implementation/ namespace")
         expected_fresh = self.base_head_after_ci == self.base_sha
         if self.base_fresh_after_ci is not expected_fresh:
             raise ValueError("base_fresh_after_ci must match observed base head evidence")
@@ -139,7 +144,7 @@ def validate_work_branch_ci(
     mutation: ImplementationMutationResult,
     backend: ImplementationCiBackend,
     *,
-    workflow_file: str = "ci.yml",
+    workflow_file: str = APPROVED_CI_WORKFLOW_FILE,
     timeout_seconds: float = 900.0,
     poll_interval_seconds: float = 5.0,
     sleeper: Callable[[float], None] = time.sleep,
@@ -151,8 +156,14 @@ def validate_work_branch_ci(
         raise ImplementationCiValidationError(
             "cannot dispatch CI because implementation base was stale immediately after publish"
         )
-    if not workflow_file or "/" in workflow_file or workflow_file in {".", ".."}:
-        raise ImplementationCiValidationError("workflow_file must be one workflow file name")
+    if workflow_file != APPROVED_CI_WORKFLOW_FILE:
+        raise ImplementationCiValidationError(
+            f"implementation CI gate only permits {APPROVED_CI_WORKFLOW_FILE!r}"
+        )
+    if not mutation.work_branch.startswith(WORK_BRANCH_PREFIX):
+        raise ImplementationCiValidationError(
+            f"implementation CI gate only permits {WORK_BRANCH_PREFIX!r} branches"
+        )
     if timeout_seconds <= 0 or poll_interval_seconds <= 0:
         raise ImplementationCiValidationError("CI timeout and poll interval must be positive")
 
@@ -169,9 +180,7 @@ def validate_work_branch_ci(
             )
         )
         matching = tuple(
-            run
-            for run in runs
-            if _run_matches(run, mutation.work_branch, mutation.commit_sha)
+            run for run in runs if _run_matches(run, mutation.work_branch, mutation.commit_sha)
         )
         if len(matching) > 1:
             raise ImplementationCiValidationError(
@@ -189,7 +198,7 @@ def validate_work_branch_ci(
             )
             return ImplementationCiValidationResult(
                 repository=mutation.repository,
-                workflow_file=workflow_file,
+                workflow_file=APPROVED_CI_WORKFLOW_FILE,
                 base_branch=mutation.base_branch,
                 base_sha=mutation.base_sha,
                 work_branch=mutation.work_branch,
@@ -245,7 +254,7 @@ def _completed_result(
 
     return ImplementationCiValidationResult(
         repository=mutation.repository,
-        workflow_file=workflow_file,
+        workflow_file=APPROVED_CI_WORKFLOW_FILE,
         base_branch=mutation.base_branch,
         base_sha=mutation.base_sha,
         work_branch=mutation.work_branch,
