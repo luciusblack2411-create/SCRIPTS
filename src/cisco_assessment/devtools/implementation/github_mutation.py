@@ -232,7 +232,9 @@ class GitHubImplementationMutationBackend:
             raise _mutation_error(exc) from exc
 
 
-def _mutation_error(exc: GitHubRestError) -> ImplementationGitHubMutationError:
+def _mutation_error(
+    exc: GitHubRestError | ImplementationGitHubRestError,
+) -> ImplementationGitHubMutationError:
     return ImplementationGitHubMutationError(str(exc), status_code=exc.status_code)
 
 
