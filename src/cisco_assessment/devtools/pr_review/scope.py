@@ -20,7 +20,6 @@ from cisco_assessment.devtools.pr_review.models import (
     ReviewRequest,
 )
 
-
 _COMPONENT_ORDER: tuple[ComponentId, ...] = tuple(ComponentId)
 
 
