@@ -182,7 +182,7 @@ class GitHubRestReadBackend:
             job_id = _require_int(job, "id")
             logs = self._transport.get_text(
                 f"{_repo_path(repository)}/actions/jobs/{job_id}/logs",
-                accept="text/plain",
+                accept="application/vnd.github+json",
             )
             observed = _parse_checkout_log(logs)
             if observed is None:
