@@ -16,6 +16,7 @@ from .enums import (
     ImplementationPlanStepKind,
 )
 from .gate_ids import ImplementationGateId
+from .github_rest import GitHubImplementationReadBackend, ImplementationGitHubRestError
 from .models import (
     ImplementationEvidence,
     ImplementationGate,
@@ -29,9 +30,17 @@ from .planning import (
     build_implementation_plan,
 )
 from .readiness import evaluate_implementation_readiness
+from .source_inspection import (
+    ImplementationSourceFile,
+    ImplementationSourceInspection,
+    ImplementationSourceInspectionError,
+    ImplementationSourceReadBackend,
+    inspect_implementation_sources,
+)
 
 __all__ = [
     "ComponentId",
+    "GitHubImplementationReadBackend",
     "ImplementationAuthorization",
     "ImplementationContext",
     "ImplementationContextError",
@@ -42,6 +51,7 @@ __all__ = [
     "ImplementationGate",
     "ImplementationGateId",
     "ImplementationGateStatus",
+    "ImplementationGitHubRestError",
     "ImplementationPlan",
     "ImplementationPlanStep",
     "ImplementationPlanStepKind",
@@ -49,7 +59,12 @@ __all__ = [
     "ImplementationReadBackend",
     "ImplementationReadinessReport",
     "ImplementationRequest",
+    "ImplementationSourceFile",
+    "ImplementationSourceInspection",
+    "ImplementationSourceInspectionError",
+    "ImplementationSourceReadBackend",
     "build_implementation_plan",
     "evaluate_implementation_readiness",
+    "inspect_implementation_sources",
     "load_implementation_context",
 ]
