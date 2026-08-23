@@ -15,7 +15,11 @@ from cisco_assessment.devtools.pr_review.github import (
     PullRequestContext,
 )
 from cisco_assessment.devtools.pr_review.metadata import evaluate_metadata_checks
-from cisco_assessment.devtools.pr_review.models import ReviewCheck, ReviewFinding, ReviewReport, ReviewRequest
+from cisco_assessment.devtools.pr_review.models import (
+    ReviewFinding,
+    ReviewReport,
+    ReviewRequest,
+)
 from cisco_assessment.devtools.pr_review.scope import detected_components, evaluate_scope_checks
 
 _CONTRACT_CHECK_IDS = frozenset({ReviewCheckId.CONTRACT_001, ReviewCheckId.CONTRACT_002})
