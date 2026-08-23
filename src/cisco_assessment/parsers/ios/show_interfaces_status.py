@@ -146,10 +146,10 @@ class IOSShowInterfacesStatusParser(BaseParser[InterfaceObservation]):
         try:
             parser_module = import_module(parser_module_name)
             common_module = import_module("genie.libs.parser.utils.common")
-            genie_parser_type: Any = getattr(parser_module, "ShowInterfacesStatus")
-            common_type: Any = getattr(common_module, "Common")
-            converter: Any = getattr(common_type, "convert_intf_name")
-        except (ImportError, AttributeError) as exc:
+            genie_parser_type: Any = vars(parser_module)["ShowInterfacesStatus"]
+            common_type: Any = vars(common_module)["Common"]
+            converter: Any = vars(common_type)["convert_intf_name"]
+        except (ImportError, KeyError) as exc:
             raise GenieDependencyError(
                 "Required Genie show interfaces status parser components are unavailable",
                 parser_id=cls._descriptor.parser_id,
