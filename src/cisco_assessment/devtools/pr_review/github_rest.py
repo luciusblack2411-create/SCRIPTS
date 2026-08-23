@@ -102,10 +102,13 @@ class GitHubRestReadBackend:
         self._workflow_pr_context: dict[int, tuple[str, str]] = {}
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
-        return _require_mapping(
-            self._transport.get_json(f"{_repo_path(repository)}/pulls/{pr_number}"),
-            "pull request",
-        )
+        path = f"{_repo_path(repository)}/pulls/{pr_number}"
+        first = _require_mapping(self._transport.get_json(path), "pull request")
+        if first.get("mergeable") is not False:
+            return first
+
+        second = _require_mapping(self._transport.get_json(path), "pull request")
+        return second
 
     def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
         path = f"{_repo_path(repository)}/branches/{quote(branch, safe='')}"
