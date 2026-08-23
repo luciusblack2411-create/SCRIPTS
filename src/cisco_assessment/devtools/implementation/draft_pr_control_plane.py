@@ -19,7 +19,9 @@ from .github_draft_pr import GitHubImplementationDraftPrBackend
 from .models import AGENT_ID, SCHEMA_VERSION, FrozenImplementationModel
 from .operational import ImplementationOperationalResult
 
-DRAFT_PR_CONTROL_PLANE_TOKEN_ENV = "CISCO_ASSESSMENT_DRAFT_PR_TOKEN"
+DRAFT_PR_CONTROL_PLANE_TOKEN_ENV: Literal["CISCO_ASSESSMENT_DRAFT_PR_TOKEN"] = (
+    "CISCO_ASSESSMENT_DRAFT_PR_TOKEN"
+)
 
 
 class ImplementationDraftPrControlPlaneError(RuntimeError):
