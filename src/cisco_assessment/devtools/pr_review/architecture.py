@@ -127,8 +127,8 @@ _FORBIDDEN_CLI_PREFIXES: tuple[str, ...] = (
     "erase ",
     "install ",
     "write ",
-    "copy running-config",
-    "copy run start",
+    "copy ",
+    "terminal length ",
 )
 _SSH_MODULES: tuple[str, ...] = ("paramiko", "netmiko", "scrapli", "asyncssh", "unicon")
 
@@ -142,7 +142,7 @@ def extract_added_lines(diff_text: str) -> tuple[DiffAddedLine, ...]:
     for raw_line in diff_text.splitlines():
         if raw_line.startswith("+++ "):
             candidate = raw_line[4:]
-            current_path = candidate[2:] if candidate.startswith("b/") else candidate
+            current_path = candidate.removeprefix("b/")
             if current_path == "/dev/null":
                 current_path = None
             new_line_number = None
@@ -185,7 +185,11 @@ def evaluate_architecture_safety_checks(context: PullRequestContext) -> tuple[Re
         _evaluate_architecture_boundary(boundary, components, added_lines)
         for boundary in _ARCHITECTURE_BOUNDARIES
     )
-    return (*architecture, _evaluate_read_only_cli(components, added_lines), _evaluate_ssh_boundary(added_lines))
+    return (
+        *architecture,
+        _evaluate_read_only_cli(components, added_lines),
+        _evaluate_ssh_boundary(added_lines),
+    )
 
 
 def _evaluate_architecture_boundary(
@@ -246,7 +250,9 @@ def _evaluate_architecture_boundary(
             ),
             violated_invariant=boundary.invariant,
             evidence=(evidence[index - 1],),
-            recommendation="Remove the cross-layer dependency and keep the responsibility in its owning layer.",
+            recommendation=(
+                "Remove the cross-layer dependency and keep the responsibility in its owning layer."
+            ),
         )
         for index, (line, module) in enumerate(violations, start=1)
     )
@@ -273,7 +279,9 @@ def _evaluate_read_only_cli(
             check_id=check_id,
             name="Productive Cisco command surfaces remain read-only",
             category="SAFETY",
-            summary="No command-definition or command-execution surface is changed by this pull request.",
+            summary=(
+                "No command-definition or command-execution surface is changed by this pull request."
+            ),
         )
 
     violations: list[tuple[DiffAddedLine, str]] = []
