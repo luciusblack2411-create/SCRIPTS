@@ -20,6 +20,7 @@ from cisco_assessment.assessment.enums import AssessmentStatus, FindingSeverity
 from cisco_assessment.models.base import normalize_utc
 from cisco_assessment.models.enums import AssessmentRunStatus, PlatformFamily
 from cisco_assessment.models.normalized import HardwareComponentType
+from cisco_assessment.models.vlan import VlanStatus
 
 REPORT_SCHEMA_VERSION: Literal["0.1"] = "0.1"
 
@@ -127,6 +128,26 @@ class InterfaceObservationReport(ReportModel):
     interfaces: tuple[InterfaceStatusRecordReport, ...]
 
 
+class VlanRecordReport(ReportModel):
+    """Canonical report representation of one VlanObservation v0.1 record."""
+
+    ordinal: PositiveInt
+    vlan_id: PositiveInt
+    name: str | None
+    status: VlanStatus
+    ports: tuple[str, ...] | None
+
+
+class VlanObservationReport(ReportModel):
+    """Canonical VlanObservation v0.1 report view in observation/RAW order."""
+
+    normalized_model: Literal["VlanObservation"] = "VlanObservation"
+    schema_version: str
+    vendor: str
+    platform: PlatformFamily
+    vlans: tuple[VlanRecordReport, ...]
+
+
 class RuleReferenceReport(ReportModel):
     rule_id: str
     rule_version: str
@@ -198,6 +219,7 @@ class AssessmentReport(ReportModel):
     device_info: DeviceInfoReport
     hardware_inventory: HardwareInventoryReport | None = None
     interface_observation: InterfaceObservationReport | None = None
+    vlan_observation: VlanObservationReport | None = None
     summary: AssessmentSummary
     outcomes: tuple[RuleOutcomeReport, ...]
     findings: tuple[FindingReport, ...]
