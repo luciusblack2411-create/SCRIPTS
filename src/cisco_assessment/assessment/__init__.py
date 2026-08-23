@@ -29,11 +29,21 @@ from .interface_observation_rules import (
 )
 from .models import AssessmentResult, Finding, RuleDecision, RuleMetadata, RuleOutcome
 from .rules import AssessmentRule
+from .vlan_observation_rules import (
+    VLAN_OBSERVATION_RULES,
+    ActiveUnsupportedVlansObservedRule,
+    SuspendedVlansObservedRule,
+    UnknownVlanStatusRule,
+    VlanInventoryObservedRule,
+    vlan_observation_rule_catalog,
+)
 
 __all__ = [
     "DEVICE_INFO_RULES",
     "HARDWARE_INVENTORY_RULES",
     "INTERFACE_OBSERVATION_RULES",
+    "VLAN_OBSERVATION_RULES",
+    "ActiveUnsupportedVlansObservedRule",
     "AssessmentContext",
     "AssessmentEngine",
     "AssessmentResult",
@@ -59,9 +69,13 @@ __all__ = [
     "RuleOutcome",
     "SoftwareVersionObservedRule",
     "SourceTrace",
+    "SuspendedVlansObservedRule",
     "UniqueInventorySerialsRule",
+    "UnknownVlanStatusRule",
     "UnrecognizedInterfaceStatusRule",
+    "VlanInventoryObservedRule",
     "device_info_rule_catalog",
     "hardware_inventory_rule_catalog",
     "interface_observation_rule_catalog",
+    "vlan_observation_rule_catalog",
 ]
