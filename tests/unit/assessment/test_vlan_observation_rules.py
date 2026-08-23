@@ -11,6 +11,7 @@ from cisco_assessment.assessment import (
     AssessmentStatus,
     NormalizedFieldSource,
     RuleCatalog,
+    RuleOutcome,
     SourceTrace,
     SuspendedVlansObservedRule,
     UnknownVlanStatusRule,
@@ -80,7 +81,7 @@ def _single_rule_outcome(
     model: VlanObservation,
     *,
     platform: PlatformFamily = PlatformFamily.IOS_XE,
-):
+) -> RuleOutcome:
     catalog = RuleCatalog[VlanObservation]((rule,))
     result = AssessmentEngine(catalog).evaluate(model, _context(platform=platform))
     return result.outcomes[0]
@@ -283,7 +284,6 @@ def test_catalog_is_not_applicable_to_nxos_until_platform_support_exists() -> No
 
     assert all(outcome.status is AssessmentStatus.NOT_APPLICABLE for outcome in result.outcomes)
     assert all(outcome.reason_code == "unsupported_platform" for outcome in result.outcomes)
-    assert result.findings == (result.findings[0],) if result.findings else ()
     assert result.findings == ()
 
 
