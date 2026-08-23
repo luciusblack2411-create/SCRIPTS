@@ -26,6 +26,9 @@ jobs:
       - name: Install project
         run: python -m pip install -e '.[dev]'
 
+      - name: Verify dependencies
+        run: python -m pip check
+
       - name: Lint
         run: ruff check .
 
