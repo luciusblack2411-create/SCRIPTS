@@ -1,0 +1,50 @@
+name: PR Review Agent Pilot
+
+on:
+  push:
+    branches: ["pilot/pr-review-agent-v0.1"]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  shadow-review-pr37:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install -e .
+
+      - name: Run advisory PR review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          cisco-pr-review run .github/pr-review-pilot/pr37.json --output json > pr37-review.json
+          review_exit=$?
+          set -e
+          cat pr37-review.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("pr37-review.json").read_text(encoding="utf-8"))
+          assert report["agent_id"] == "PR_REVIEW_AGENT_V1"
+          assert report["pr_number"] == 37
+          assert report["decision"] == "NEEDS_HUMAN_REVIEW"
+          assert any(
+              finding["requires_human_decision"]
+              for finding in report["findings"]
+          )
+          PY
+          test "$review_exit" -eq 2
