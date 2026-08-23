@@ -6,6 +6,8 @@ import pytest
 
 from cisco_assessment.devtools.pr_review import (
     ComponentId,
+    GitHubChangedFile,
+    GitHubWorkflowRun,
     PullRequestContext,
     ReviewDecision,
     ReviewRequest,
@@ -245,8 +247,6 @@ def _context(
     workflow_status: str = "completed",
     workflow_conclusion: str | None = "success",
 ) -> PullRequestContext:
-    from cisco_assessment.devtools.pr_review import GitHubChangedFile, GitHubWorkflowRun
-
     return PullRequestContext(
         repository=repository,
         pr_number=42,
