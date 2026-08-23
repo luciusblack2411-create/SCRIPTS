@@ -1,0 +1,8 @@
+Port         Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1      USER-ACCESS        connected    10         a-full a-1000 10/100/1000BaseTX
+Gi1/0/2                         notconnect   20           auto   auto 10/100/1000BaseTX
+Gi1/0/3      ADMIN-DOWN         disabled     30           auto   auto 10/100/1000BaseTX
+Gi1/0/4      BPDU-GUARD         err-disabled 40           auto   auto 10/100/1000BaseTX
+Gi1/0/47     CORE-TRUNK         connected    trunk      a-full a-1000 1000BaseLX SFP
+Te1/1/1      DIST-UPLINK        connected    routed       full  a-10G 10GBase-SR
+Po10         SERVER-LAG         connected    trunk      a-full  a-10G
