@@ -96,7 +96,7 @@ def load_implementation_context(
                 path=path,
                 component=component,
                 blob_sha=blob_sha,
-                size=cast(int | None, size_value),
+                size=size_value,
             )
         )
 
