@@ -19,8 +19,16 @@ from .github import (
     PullRequestContext,
 )
 from .models import ReviewCheck, ReviewEvidence, ReviewFinding, ReviewReport, ReviewRequest
+from .scope import (
+    ChangedFileClassification,
+    classify_changed_files,
+    classify_changed_path,
+    detected_components,
+    evaluate_scope_checks,
+)
 
 __all__ = [
+    "ChangedFileClassification",
     "ComponentId",
     "DecisionOutcome",
     "GitHubChangedFile",
@@ -40,5 +48,9 @@ __all__ = [
     "ReviewFindingSeverity",
     "ReviewReport",
     "ReviewRequest",
+    "classify_changed_files",
+    "classify_changed_path",
     "derive_review_decision",
+    "detected_components",
+    "evaluate_scope_checks",
 ]
