@@ -43,3 +43,6 @@ jobs:
 
       - name: CLI smoke test
         run: cisco-assessment version
+
+      - name: PR review CLI smoke test
+        run: cisco-pr-review --help
