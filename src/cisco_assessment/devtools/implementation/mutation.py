@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from typing import Literal, Protocol, cast
@@ -87,6 +88,13 @@ class ImplementationMutationChangeResult(FrozenImplementationModel):
     proposed_content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     verified: Literal[True] = True
 
+    @model_validator(mode="after")
+    def validate_change_id(self) -> ImplementationMutationChangeResult:
+        expected = f"impl-change:{self.ordinal:04d}"
+        if self.change_id != expected:
+            raise ValueError(f"change_id must equal {expected!r}")
+        return self
+
 
 class ImplementationMutationResult(FrozenImplementationModel):
     """Canonical evidence that an approved workspace was published to a work branch."""
@@ -110,10 +118,16 @@ class ImplementationMutationResult(FrozenImplementationModel):
     cisco_execution_allowed: Literal[False] = False
 
     @model_validator(mode="after")
-    def validate_change_order(self) -> ImplementationMutationResult:
+    def validate_canonical_result(self) -> ImplementationMutationResult:
         ordinals = tuple(item.ordinal for item in self.changes)
         if ordinals != tuple(range(1, len(self.changes) + 1)):
             raise ValueError("mutation change ordinals must be contiguous from 1")
+        paths = tuple(item.path for item in self.changes)
+        if paths != tuple(sorted(paths)) or len(set(paths)) != len(paths):
+            raise ValueError("mutation changes must have unique paths in lexical order")
+        expected_fresh = self.base_head_after_publish == self.base_sha
+        if self.base_fresh_after_publish is not expected_fresh:
+            raise ValueError("base_fresh_after_publish must match observed base head evidence")
         return self
 
 
@@ -132,7 +146,9 @@ def execute_work_branch_mutation(
 
     repository = request.repository
     base_sha = workspace.base_sha
-    _require_branch_sha(backend.get_branch(repository, workspace.base_branch), workspace.base_branch, base_sha)
+    _require_branch_sha(
+        backend.get_branch(repository, workspace.base_branch), workspace.base_branch, base_sha
+    )
     if backend.get_branch(repository, work_branch) is not None:
         raise ImplementationMutationError(f"work branch {work_branch!r} already exists")
 
@@ -163,7 +179,9 @@ def execute_work_branch_mutation(
 
     # Re-check immediately before publishing the branch ref. Staged Git objects may exist,
     # but no repository ref is published when the approved base has advanced.
-    _require_branch_sha(backend.get_branch(repository, workspace.base_branch), workspace.base_branch, base_sha)
+    _require_branch_sha(
+        backend.get_branch(repository, workspace.base_branch), workspace.base_branch, base_sha
+    )
     if backend.get_branch(repository, work_branch) is not None:
         raise ImplementationMutationError(f"work branch {work_branch!r} appeared before publish")
 
@@ -330,8 +348,6 @@ def _required_string(value: Mapping[str, object], key: str, context: str) -> str
 
 
 def _workspace_sha256(workspace: ImplementationWorkspace) -> str:
-    import hashlib
-
     canonical = json.dumps(
         workspace.model_dump(mode="json"),
         sort_keys=True,
