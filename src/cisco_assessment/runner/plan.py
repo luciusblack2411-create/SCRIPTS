@@ -65,17 +65,28 @@ HARDWARE_INVENTORY_PLAN_V0_1 = AssessmentPlan(
     ),
 )
 
+INTERFACE_STATUS_PLAN_V0_1 = AssessmentPlan(
+    plan_id="interface-status",
+    version="0.1",
+    commands=(
+        AssessmentPlanItem(command_id=CommandId.SYSTEM_VERSION),
+        AssessmentPlanItem(command_id=CommandId.INTERFACES_STATUS),
+    ),
+)
+
 
 class ProductiveAssessmentPlanId(StrEnum):
     """Stable CLI-selectable identifiers for productive assessment plans."""
 
     SHOW_VERSION = "show-version"
     HARDWARE_INVENTORY = "hardware-inventory"
+    INTERFACE_STATUS = "interface-status"
 
 
 _PRODUCTIVE_ASSESSMENT_PLANS: dict[ProductiveAssessmentPlanId, AssessmentPlan] = {
     ProductiveAssessmentPlanId.SHOW_VERSION: SHOW_VERSION_PLAN_V0_2,
     ProductiveAssessmentPlanId.HARDWARE_INVENTORY: HARDWARE_INVENTORY_PLAN_V0_1,
+    ProductiveAssessmentPlanId.INTERFACE_STATUS: INTERFACE_STATUS_PLAN_V0_1,
 }
 
 
