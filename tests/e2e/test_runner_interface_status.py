@@ -133,6 +133,7 @@ def test_interface_status_vertical_slice_assesses_and_reports_with_raw_trace(
         "interfaces[3].interface",
         "interfaces[3].status",
     }
+    raw_lines = interface_raw.content.splitlines()
     for evidence in int001.evidence:
         assert evidence.sources
         source = evidence.sources[0]
@@ -141,8 +142,11 @@ def test_interface_status_vertical_slice_assesses_and_reports_with_raw_trace(
         assert source.raw_output_id == interface_raw.id
         assert source.raw_sha256 == interface_raw.sha256
         assert source.parser_id == "ios.show_interfaces_status.v1"
-        assert source.line_start == 5
-        assert source.line_end == 5
+        assert source.line_start is not None
+        assert source.line_end == source.line_start
+        source_line = raw_lines[source.line_start - 1]
+        assert source_line.startswith("Gi1/0/4")
+        assert "err-disabled" in source_line
 
     interface_findings = tuple(
         finding
