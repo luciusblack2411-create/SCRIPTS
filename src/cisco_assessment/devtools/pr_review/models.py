@@ -141,6 +141,7 @@ class ReviewReport(FrozenReviewModel):
     pr_number: int = Field(gt=0)
     base_branch: str = Field(min_length=1)
     base_sha: str = Field(min_length=1)
+    base_branch_head_sha: str | None = None
     head_branch: str = Field(min_length=1)
     head_sha: str = Field(min_length=1)
     mergeable: bool | None
