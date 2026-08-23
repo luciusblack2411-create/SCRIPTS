@@ -11,7 +11,11 @@ from pydantic import Field, model_validator
 
 from ..pr_review import ComponentId, classify_changed_path
 from .context import ImplementationContext
-from .enums import ImplementationDecision, ImplementationFileChangeKind
+from .enums import (
+    ImplementationAuthorization,
+    ImplementationDecision,
+    ImplementationFileChangeKind,
+)
 from .models import AGENT_ID, SCHEMA_VERSION, FrozenImplementationModel, ImplementationRequest
 from .planning import ImplementationPlan
 from .readiness import evaluate_implementation_readiness
@@ -86,6 +90,7 @@ class ImplementationWorkspace(FrozenImplementationModel):
     base_branch: str = Field(min_length=1)
     base_sha: str = Field(min_length=1)
     objective: str = Field(min_length=1)
+    authorization: ImplementationAuthorization
     plan_step_ids: tuple[str, ...] = Field(min_length=1)
     inspected_paths: tuple[str, ...] = Field(min_length=1)
     contracts_to_preserve: tuple[str, ...] = ()
@@ -103,6 +108,8 @@ class ImplementationWorkspace(FrozenImplementationModel):
             raise ValueError("inspected_paths must be sorted")
         if len(set(self.inspected_paths)) != len(self.inspected_paths):
             raise ValueError("inspected_paths must be unique")
+        if len(set(self.plan_step_ids)) != len(self.plan_step_ids):
+            raise ValueError("plan_step_ids must be unique")
         ordinals = tuple(change.ordinal for change in self.changes)
         expected_ordinals = tuple(range(1, len(self.changes) + 1))
         if ordinals != expected_ordinals:
@@ -223,6 +230,7 @@ def build_implementation_workspace(
         base_branch=context.base_branch,
         base_sha=context.base_sha,
         objective=request.objective,
+        authorization=request.authorization,
         plan_step_ids=tuple(step.step_id for step in plan.steps),
         inspected_paths=tuple(item.path for item in inspection.files),
         contracts_to_preserve=request.contracts_to_preserve,
@@ -250,6 +258,40 @@ def _validate_workspace_inputs(
         raise ImplementationWorkspaceError("implementation plan authorization does not match request")
     if inspection.repository != request.repository or inspection.base_sha != context.base_sha:
         raise ImplementationWorkspaceError("source inspection does not match exact context base")
+
+    context_by_path = {item.path: item for item in context.files}
+    for source_file in inspection.files:
+        context_file = context_by_path.get(source_file.path)
+        if context_file is None:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} is absent from context evidence"
+            )
+        if source_file.blob_sha != context_file.blob_sha:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} blob does not match context evidence"
+            )
+        if source_file.component is not context_file.component:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} component does not match context"
+            )
+        try:
+            source_bytes = source_file.content.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} is not strict UTF-8"
+            ) from exc
+        if len(source_bytes) != source_file.byte_size:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} byte size is inconsistent"
+            )
+        if hashlib.sha256(source_bytes).hexdigest() != source_file.sha256:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} SHA-256 is inconsistent"
+            )
+        if context_file.size is not None and source_file.byte_size != context_file.size:
+            raise ImplementationWorkspaceError(
+                f"source inspection path {source_file.path!r} size does not match context evidence"
+            )
 
 
 def _validate_repository_path(path: str) -> None:
