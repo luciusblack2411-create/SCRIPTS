@@ -25,6 +25,7 @@ class FakeGitHubBackend:
         mergeable: bool | None = True,
         state: str = "open",
         base_branch: str = "main",
+        base_branch_head_sha: str | None = "base-sha",
         workflow_status: str = "completed",
         workflow_conclusion: str | None = "success",
     ) -> None:
@@ -33,6 +34,7 @@ class FakeGitHubBackend:
         self.mergeable = mergeable
         self.state = state
         self.base_branch = base_branch
+        self.base_branch_head_sha = base_branch_head_sha
         self.workflow_status = workflow_status
         self.workflow_conclusion = workflow_conclusion
 
@@ -48,6 +50,12 @@ class FakeGitHubBackend:
             "base": {"ref": self.base_branch, "sha": "base-sha"},
             "head": {"ref": "feature", "sha": "head-sha"},
         }
+
+    def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
+        del repository
+        if self.base_branch_head_sha is None:
+            return None
+        return {"name": branch, "commit": {"sha": self.base_branch_head_sha}}
 
     def list_pull_request_files(
         self,
@@ -133,12 +141,51 @@ def test_review_pr_builds_approve_report_from_read_only_backend() -> None:
     assert report.decision is ReviewDecision.APPROVE
     assert report.repository == "owner/repo"
     assert report.pr_number == 42
+    assert report.base_branch_head_sha == "base-sha"
     assert report.head_sha == "head-sha"
     assert report.detected_components == (
         ComponentId.TESTING_FIXTURES,
         ComponentId.CI_TOOLING,
     )
     assert report.contracts_changed == ()
+
+
+def test_review_pr_allows_base_advancement_as_evidence_backed_residual_risk() -> None:
+    source = "src/cisco_assessment/devtools/pr_review/example.py"
+    test = "tests/unit/devtools/pr_review/test_example.py"
+    backend = FakeGitHubBackend(
+        diff_text=_diff(source, "VALUE = 1"),
+        files=(_file(source), _file(test)),
+        base_branch_head_sha="new-main-head",
+    )
+
+    report = review_pr(
+        _request(ComponentId.CI_TOOLING, ComponentId.TESTING_FIXTURES),
+        backend,
+    )
+
+    assert report.decision is ReviewDecision.APPROVE
+    assert report.base_sha == "base-sha"
+    assert report.base_branch_head_sha == "new-main-head"
+    assert any(risk.startswith("GIT-005:001:") for risk in report.residual_risks)
+
+
+def test_review_pr_blocks_when_current_base_head_is_unavailable() -> None:
+    source = "src/cisco_assessment/devtools/pr_review/example.py"
+    test = "tests/unit/devtools/pr_review/test_example.py"
+    backend = FakeGitHubBackend(
+        diff_text=_diff(source, "VALUE = 1"),
+        files=(_file(source), _file(test)),
+        base_branch_head_sha=None,
+    )
+
+    report = review_pr(
+        _request(ComponentId.CI_TOOLING, ComponentId.TESTING_FIXTURES),
+        backend,
+    )
+
+    assert report.decision is ReviewDecision.BLOCKED
+    assert report.base_branch_head_sha is None
 
 
 def test_review_report_requests_changes_for_scope_leak() -> None:
@@ -243,6 +290,7 @@ def _context(
     paths: tuple[str, ...],
     repository: str = "owner/repo",
     base_branch: str = "main",
+    base_branch_head_sha: str | None = "base-sha",
     mergeable: bool | None = True,
     workflow_status: str = "completed",
     workflow_conclusion: str | None = "success",
@@ -257,6 +305,7 @@ def _context(
         mergeable=mergeable,
         base_branch=base_branch,
         base_sha="base-sha",
+        base_branch_head_sha=base_branch_head_sha,
         head_branch="feature",
         head_sha="head-sha",
         changed_files=tuple(
