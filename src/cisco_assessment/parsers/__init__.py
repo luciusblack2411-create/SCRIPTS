@@ -14,7 +14,12 @@ from .errors import (
     UnrecognizedFormatError,
     UnsupportedPlatformError,
 )
-from .ios import IOSShowInterfacesStatusParser, IOSShowInventoryParser, IOSShowVersionParser
+from .ios import (
+    IOSShowInterfacesStatusParser,
+    IOSShowInventoryParser,
+    IOSShowVersionParser,
+    IOSShowVlanBriefParser,
+)
 from .models import (
     FieldEvidence,
     ParsedPayload,
@@ -33,6 +38,7 @@ def build_parser_registry() -> ParserRegistry:
     registry.register(IOSShowVersionParser())
     registry.register(IOSShowInventoryParser())
     registry.register(IOSShowInterfacesStatusParser())
+    registry.register(IOSShowVlanBriefParser())
     return registry
 
 
@@ -47,6 +53,7 @@ __all__ = [
     "IOSShowInterfacesStatusParser",
     "IOSShowInventoryParser",
     "IOSShowVersionParser",
+    "IOSShowVlanBriefParser",
     "ParseResult",
     "ParseStatus",
     "ParseTrace",
