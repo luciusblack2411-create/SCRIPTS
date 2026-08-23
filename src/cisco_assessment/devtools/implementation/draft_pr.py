@@ -74,7 +74,7 @@ class ImplementationDraftPrRequest(FrozenImplementationModel):
     commit_sha: str = Field(min_length=1)
     title: str = Field(min_length=1)
     body: str
-    authorization: ImplementationAuthorization = ImplementationAuthorization.DRAFT_PR
+    authorization: ImplementationAuthorization
     human_merge_gate_required: Literal[True] = True
     cisco_execution_allowed: Literal[False] = False
 
@@ -249,6 +249,8 @@ def _validate_created_pull_request(
         raise ImplementationDraftPrError("created pull request must remain open and draft")
     if _required_string(payload, "title", "pull request") != request.title:
         raise ImplementationDraftPrError("created pull request title does not match authorization")
+    if payload.get("body") != request.body:
+        raise ImplementationDraftPrError("created pull request body does not match authorization")
     base = _required_mapping(payload, "base", "pull request")
     head = _required_mapping(payload, "head", "pull request")
     if _required_string(base, "ref", "pull request base") != request.base_branch:
