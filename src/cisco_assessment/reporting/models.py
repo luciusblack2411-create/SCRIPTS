@@ -104,6 +104,29 @@ class HardwareInventoryReport(ReportModel):
     records: tuple[HardwareInventoryRecordReport, ...]
 
 
+class InterfaceStatusRecordReport(ReportModel):
+    """Canonical report representation of one InterfaceObservation v0.1 record."""
+
+    ordinal: PositiveInt
+    interface: str
+    description: str | None
+    status: str
+    vlan: str
+    duplex: str
+    speed: str
+    media_type: str | None
+
+
+class InterfaceObservationReport(ReportModel):
+    """Canonical InterfaceObservation v0.1 report view in observation/RAW order."""
+
+    normalized_model: Literal["InterfaceObservation"] = "InterfaceObservation"
+    schema_version: str
+    vendor: str
+    platform: PlatformFamily
+    interfaces: tuple[InterfaceStatusRecordReport, ...]
+
+
 class RuleReferenceReport(ReportModel):
     rule_id: str
     rule_version: str
@@ -174,6 +197,7 @@ class AssessmentReport(ReportModel):
     target: TargetSnapshotReport
     device_info: DeviceInfoReport
     hardware_inventory: HardwareInventoryReport | None = None
+    interface_observation: InterfaceObservationReport | None = None
     summary: AssessmentSummary
     outcomes: tuple[RuleOutcomeReport, ...]
     findings: tuple[FindingReport, ...]
