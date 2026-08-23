@@ -82,6 +82,25 @@ def test_blocking_finding_requires_evidence() -> None:
         )
 
 
+def test_finding_evidence_must_match_finding_check_id() -> None:
+    mismatched = ReviewEvidence(
+        evidence_id="ev-mismatch",
+        kind=ReviewEvidenceKind.DIFF,
+        description="Evidence belongs to another check.",
+        check_id=ReviewCheckId.SCOPE_001,
+    )
+
+    with pytest.raises(ValidationError, match="finding evidence check_id"):
+        ReviewFinding(
+            finding_id="ARCH-003:001",
+            check_id=ReviewCheckId.ARCH_003,
+            severity=ReviewFindingSeverity.BLOCKING,
+            title="Parser crosses architecture boundary",
+            observation="Parser imports Reporting.",
+            evidence=(mismatched,),
+        )
+
+
 def test_non_applicable_check_requires_not_applicable_status() -> None:
     with pytest.raises(ValidationError, match="non-applicable checks"):
         ReviewCheck(
@@ -94,6 +113,45 @@ def test_non_applicable_check_requires_not_applicable_status() -> None:
             evidence=(),
             findings=(),
             blocking=True,
+        )
+
+
+def test_blocking_failed_check_requires_evidence() -> None:
+    with pytest.raises(ValidationError, match="blocking failed checks require evidence"):
+        ReviewCheck(
+            check_id=ReviewCheckId.SCOPE_001,
+            name="Authorized scope",
+            category="SCOPE",
+            status=ReviewCheckStatus.FAIL,
+            applicable=True,
+            summary="Unexpected component changed.",
+            evidence=(),
+            findings=(),
+            blocking=True,
+        )
+
+
+def test_check_findings_must_match_check_id() -> None:
+    finding = ReviewFinding(
+        finding_id="ARCH-003:001",
+        check_id=ReviewCheckId.ARCH_003,
+        severity=ReviewFindingSeverity.WARNING,
+        title="Parser boundary observation",
+        observation="Synthetic observation.",
+        evidence=(_evidence(),),
+    )
+
+    with pytest.raises(ValidationError, match="check findings must use"):
+        ReviewCheck(
+            check_id=ReviewCheckId.SCOPE_001,
+            name="Authorized scope",
+            category="SCOPE",
+            status=ReviewCheckStatus.WARNING,
+            applicable=True,
+            summary="Synthetic warning.",
+            evidence=(),
+            findings=(finding,),
+            blocking=False,
         )
 
 
