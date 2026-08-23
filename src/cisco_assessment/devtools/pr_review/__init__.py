@@ -22,6 +22,7 @@ from .github import (
     GitHubWorkflowRun,
     PullRequestContext,
 )
+from .github_rest import GitHubRestError, GitHubRestReadBackend, UrllibGitHubTransport
 from .metadata import evaluate_metadata_checks
 from .models import ReviewCheck, ReviewEvidence, ReviewFinding, ReviewReport, ReviewRequest
 from .reviewer import build_review_report, review_pr
@@ -45,6 +46,8 @@ __all__ = [
     "GitHubContextError",
     "GitHubReadAdapter",
     "GitHubReadBackend",
+    "GitHubRestError",
+    "GitHubRestReadBackend",
     "GitHubWorkflowRun",
     "PullRequestContext",
     "ReviewCheck",
@@ -57,6 +60,7 @@ __all__ = [
     "ReviewFindingSeverity",
     "ReviewReport",
     "ReviewRequest",
+    "UrllibGitHubTransport",
     "build_review_report",
     "classify_changed_files",
     "classify_changed_path",
