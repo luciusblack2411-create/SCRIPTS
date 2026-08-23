@@ -2,6 +2,7 @@
 
 from .architecture import DiffAddedLine, evaluate_architecture_safety_checks, extract_added_lines
 from .check_ids import ReviewCheckId
+from .contract_ci import DiffRemovedLine, evaluate_contract_quality_ci_checks, extract_removed_lines
 from .decision import DecisionOutcome, derive_review_decision
 from .enums import (
     ComponentId,
@@ -33,6 +34,7 @@ __all__ = [
     "ComponentId",
     "DecisionOutcome",
     "DiffAddedLine",
+    "DiffRemovedLine",
     "GitHubChangedFile",
     "GitHubCommit",
     "GitHubContextError",
@@ -55,6 +57,8 @@ __all__ = [
     "derive_review_decision",
     "detected_components",
     "evaluate_architecture_safety_checks",
+    "evaluate_contract_quality_ci_checks",
     "evaluate_scope_checks",
     "extract_added_lines",
+    "extract_removed_lines",
 ]
