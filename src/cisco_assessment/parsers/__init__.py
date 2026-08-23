@@ -5,6 +5,8 @@ from .errors import (
     CommandMismatchError,
     DuplicateParserError,
     EmptyRawOutputError,
+    GenieDependencyError,
+    GenieExtractionError,
     ParserError,
     ParserErrorCode,
     ParserNotFoundError,
@@ -12,7 +14,7 @@ from .errors import (
     UnrecognizedFormatError,
     UnsupportedPlatformError,
 )
-from .ios import IOSShowInventoryParser, IOSShowVersionParser
+from .ios import IOSShowInterfacesStatusParser, IOSShowInventoryParser, IOSShowVersionParser
 from .models import (
     FieldEvidence,
     ParsedPayload,
@@ -30,6 +32,7 @@ def build_parser_registry() -> ParserRegistry:
     registry = ParserRegistry()
     registry.register(IOSShowVersionParser())
     registry.register(IOSShowInventoryParser())
+    registry.register(IOSShowInterfacesStatusParser())
     return registry
 
 
@@ -39,6 +42,9 @@ __all__ = [
     "DuplicateParserError",
     "EmptyRawOutputError",
     "FieldEvidence",
+    "GenieDependencyError",
+    "GenieExtractionError",
+    "IOSShowInterfacesStatusParser",
     "IOSShowInventoryParser",
     "IOSShowVersionParser",
     "ParseResult",
