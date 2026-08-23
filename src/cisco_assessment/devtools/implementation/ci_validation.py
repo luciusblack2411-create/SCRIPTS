@@ -12,7 +12,7 @@ from pydantic import Field, model_validator
 from .models import AGENT_ID, SCHEMA_VERSION, FrozenImplementationModel
 from .mutation import ImplementationMutationResult
 
-APPROVED_CI_WORKFLOW_FILE = "ci.yml"
+APPROVED_CI_WORKFLOW_FILE: Literal["ci.yml"] = "ci.yml"
 WORK_BRANCH_PREFIX = "agent/implementation/"
 
 
@@ -190,7 +190,7 @@ def validate_work_branch_ci(
             run = matching[0]
             status = _required_string(run, "status", "workflow run")
             if status == "completed":
-                return _completed_result(mutation, backend, workflow_file, run)
+                return _completed_result(mutation, backend, run)
 
         if clock() >= deadline:
             base_after = _observed_branch_sha(
@@ -214,7 +214,6 @@ def validate_work_branch_ci(
 def _completed_result(
     mutation: ImplementationMutationResult,
     backend: ImplementationCiBackend,
-    workflow_file: str,
     run: Mapping[str, object],
 ) -> ImplementationCiValidationResult:
     run_id = _required_int(run, "id", "workflow run")
