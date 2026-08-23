@@ -154,9 +154,12 @@ class GitHubReadyForReviewBackend:
         errors = payload.get("errors")
         if errors is not None:
             raise GitHubReadyForReviewError("GitHub GraphQL returned errors for Ready-for-Review")
-        data = _require_mapping(payload, "data")
-        mutation = _require_mapping(data, "markPullRequestReadyForReview")
-        pull_request = _require_mapping(mutation, "pullRequest")
+        data = _require_mapping(payload.get("data"), "data")
+        mutation = _require_mapping(
+            data.get("markPullRequestReadyForReview"),
+            "markPullRequestReadyForReview",
+        )
+        pull_request = _require_mapping(mutation.get("pullRequest"), "pullRequest")
         if _require_bool(pull_request, "isDraft") is not False:
             raise GitHubReadyForReviewError("GraphQL did not confirm Ready-for-Review state")
         return pull_request
