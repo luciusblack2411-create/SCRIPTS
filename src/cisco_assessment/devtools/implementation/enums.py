@@ -1,0 +1,40 @@
+"""Stable enums for Implementation Agent v0.1."""
+
+from enum import StrEnum
+
+
+class ImplementationDecision(StrEnum):
+    """Deterministic readiness decision for an implementation request."""
+
+    READY = "READY"
+    NEEDS_HUMAN_INPUT = "NEEDS_HUMAN_INPUT"
+    BLOCKED = "BLOCKED"
+
+
+class ImplementationGateStatus(StrEnum):
+    """Outcome of one implementation-readiness gate."""
+
+    PASS = "PASS"
+    NEEDS_HUMAN_INPUT = "NEEDS_HUMAN_INPUT"
+    BLOCKED = "BLOCKED"
+
+
+class ImplementationAuthorization(StrEnum):
+    """Maximum repository mutation explicitly granted to the agent."""
+
+    PLAN_ONLY = "PLAN_ONLY"
+    WORK_BRANCH = "WORK_BRANCH"
+    DRAFT_PR = "DRAFT_PR"
+
+
+class ImplementationEvidenceKind(StrEnum):
+    """Stable evidence categories consumed by implementation readiness."""
+
+    CONTRACT = "CONTRACT"
+    RAW_FIXTURE = "RAW_FIXTURE"
+    SOURCE = "SOURCE"
+    ISSUE = "ISSUE"
+    HANDOFF = "HANDOFF"
+    TEST = "TEST"
+    CI = "CI"
+    OTHER = "OTHER"
