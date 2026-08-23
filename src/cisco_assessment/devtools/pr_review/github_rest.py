@@ -69,9 +69,11 @@ class UrllibGitHubTransport:
             "User-Agent": "cisco-switch-assessment-pr-review-agent-v0.1",
             "X-GitHub-Api-Version": "2022-11-28",
         }
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
         request = Request(f"{self._api_base_url}{path}", headers=headers, method="GET")
+        if self._token:
+            # urllib copies normal headers onto redirects. Keep GitHub credentials on the
+            # API request only so a cross-origin signed log URL never receives our token.
+            request.add_unredirected_header("Authorization", f"Bearer {self._token}")
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:
                 data: object = response.read()
