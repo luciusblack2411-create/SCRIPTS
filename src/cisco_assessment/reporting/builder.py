@@ -13,6 +13,8 @@ from cisco_assessment.models import (
     DeviceInfo,
     HardwareInventory,
     HardwareInventoryRecord,
+    InterfaceObservation,
+    InterfaceStatusRecord,
 )
 from cisco_assessment.models.base import utc_now
 
@@ -26,6 +28,8 @@ from .models import (
     FindingReport,
     HardwareInventoryRecordReport,
     HardwareInventoryReport,
+    InterfaceObservationReport,
+    InterfaceStatusRecordReport,
     ReportMetadata,
     RuleOutcomeReport,
     RuleReferenceReport,
@@ -44,6 +48,7 @@ class AssessmentReportBuilder:
         result: AssessmentResult,
         device_info: DeviceInfo,
         hardware_inventory: HardwareInventory | None = None,
+        interface_observation: InterfaceObservation | None = None,
         generated_at: datetime | None = None,
         report_id: UUID | None = None,
     ) -> AssessmentReport:
@@ -52,6 +57,7 @@ class AssessmentReportBuilder:
             result=result,
             device_info=device_info,
             hardware_inventory=hardware_inventory,
+            interface_observation=interface_observation,
         )
 
         status_counts = {status: 0 for status in AssessmentStatus}
@@ -108,6 +114,19 @@ class AssessmentReportBuilder:
                     ),
                 )
             ),
+            interface_observation=(
+                None
+                if interface_observation is None
+                else InterfaceObservationReport(
+                    schema_version=interface_observation.schema_version,
+                    vendor=interface_observation.vendor,
+                    platform=interface_observation.platform,
+                    interfaces=tuple(
+                        self._map_interface_status_record(item)
+                        for item in interface_observation.interfaces
+                    ),
+                )
+            ),
             summary=AssessmentSummary(
                 rules_evaluated=len(result.outcomes),
                 findings_total=len(result.findings),
@@ -128,6 +147,7 @@ class AssessmentReportBuilder:
         result: AssessmentResult,
         device_info: DeviceInfo,
         hardware_inventory: HardwareInventory | None,
+        interface_observation: InterfaceObservation | None,
     ) -> None:
         if result.assessment_run_id != run.id:
             raise ReportBuildError("AssessmentResult assessment_run_id does not match AssessmentRun")
@@ -139,6 +159,8 @@ class AssessmentReportBuilder:
             raise ReportBuildError("AssessmentResult normalized_model does not match DeviceInfo")
         if hardware_inventory is not None and hardware_inventory.platform != device_info.platform:
             raise ReportBuildError("HardwareInventory platform does not match DeviceInfo platform")
+        if interface_observation is not None and interface_observation.platform != device_info.platform:
+            raise ReportBuildError("InterfaceObservation platform does not match DeviceInfo platform")
 
         for evidence in AssessmentReportBuilder._all_evidence(result):
             for source in evidence.sources:
@@ -167,6 +189,21 @@ class AssessmentReportBuilder:
             serial_number=record.serial_number,
             component_type=record.component_type,
             parent_id=record.parent_id,
+        )
+
+    @staticmethod
+    def _map_interface_status_record(
+        record: InterfaceStatusRecord,
+    ) -> InterfaceStatusRecordReport:
+        return InterfaceStatusRecordReport(
+            ordinal=record.ordinal,
+            interface=record.interface,
+            description=record.description,
+            status=record.status,
+            vlan=record.vlan,
+            duplex=record.duplex,
+            speed=record.speed,
+            media_type=record.media_type,
         )
 
     @staticmethod
