@@ -7,6 +7,7 @@ import pytest
 from cisco_assessment.devtools.pr_review import (
     ComponentId,
     GitHubChangedFile,
+    GitHubCheckoutProvenance,
     GitHubWorkflowRun,
     PullRequestContext,
     ReviewDecision,
@@ -26,8 +27,10 @@ class FakeGitHubBackend:
         state: str = "open",
         base_branch: str = "main",
         base_branch_head_sha: str | None = "base-sha",
+        workflow_base_sha: str | None = None,
         workflow_status: str = "completed",
         workflow_conclusion: str | None = "success",
+        checkout_available: bool = True,
     ) -> None:
         self.diff_text = diff_text
         self.files = files
@@ -35,8 +38,10 @@ class FakeGitHubBackend:
         self.state = state
         self.base_branch = base_branch
         self.base_branch_head_sha = base_branch_head_sha
+        self.workflow_base_sha = workflow_base_sha or base_branch_head_sha or "base-sha"
         self.workflow_status = workflow_status
         self.workflow_conclusion = workflow_conclusion
+        self.checkout_available = checkout_available
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
         del repository
@@ -90,8 +95,31 @@ class FakeGitHubBackend:
                 "head_sha": commit_sha,
                 "status": self.workflow_status,
                 "conclusion": self.workflow_conclusion,
+                "event": "pull_request",
+                "pull_requests": [
+                    {
+                        "number": 42,
+                        "base": {"sha": self.workflow_base_sha},
+                        "head": {"sha": commit_sha},
+                    }
+                ],
             },
         )
+
+    def get_workflow_checkout_provenance(
+        self,
+        repository: str,
+        run_id: int,
+    ) -> Mapping[str, object] | None:
+        del repository, run_id
+        if not self.checkout_available:
+            return None
+        return {
+            "ref": "refs/pull/42/merge",
+            "sha": "merge-sha",
+            "base_sha": self.workflow_base_sha,
+            "head_sha": "head-sha",
+        }
 
 
 def _file(path: str) -> Mapping[str, object]:
@@ -150,13 +178,37 @@ def test_review_pr_builds_approve_report_from_read_only_backend() -> None:
     assert report.contracts_changed == ()
 
 
-def test_review_pr_routes_base_advancement_to_human_freshness_review() -> None:
+def test_review_pr_approves_base_advancement_when_fresh_merge_ci_is_proved() -> None:
     source = "src/cisco_assessment/devtools/pr_review/example.py"
     test = "tests/unit/devtools/pr_review/test_example.py"
     backend = FakeGitHubBackend(
         diff_text=_diff(source, "VALUE = 1"),
         files=(_file(source), _file(test)),
         base_branch_head_sha="new-main-head",
+        workflow_base_sha="new-main-head",
+    )
+
+    report = review_pr(
+        _request(ComponentId.CI_TOOLING, ComponentId.TESTING_FIXTURES),
+        backend,
+    )
+
+    assert report.decision is ReviewDecision.APPROVE
+    assert report.base_sha == "base-sha"
+    assert report.base_branch_head_sha == "new-main-head"
+    git_005 = next(finding for finding in report.findings if finding.finding_id == "GIT-005:001")
+    assert git_005.requires_human_decision is False
+    assert any(risk.startswith("GIT-005:001:") for risk in report.residual_risks)
+
+
+def test_review_pr_routes_stale_merge_ci_to_human_freshness_review() -> None:
+    source = "src/cisco_assessment/devtools/pr_review/example.py"
+    test = "tests/unit/devtools/pr_review/test_example.py"
+    backend = FakeGitHubBackend(
+        diff_text=_diff(source, "VALUE = 1"),
+        files=(_file(source), _file(test)),
+        base_branch_head_sha="new-main-head",
+        workflow_base_sha="base-sha",
     )
 
     report = review_pr(
@@ -165,11 +217,25 @@ def test_review_pr_routes_base_advancement_to_human_freshness_review() -> None:
     )
 
     assert report.decision is ReviewDecision.NEEDS_HUMAN_REVIEW
-    assert report.base_sha == "base-sha"
-    assert report.base_branch_head_sha == "new-main-head"
-    git_005 = next(finding for finding in report.findings if finding.finding_id == "GIT-005:001")
-    assert git_005.requires_human_decision is True
-    assert report.residual_risks == ()
+    ci_003 = next(finding for finding in report.findings if finding.finding_id == "CI-003:001")
+    assert ci_003.requires_human_decision is True
+
+
+def test_review_pr_blocks_when_merge_checkout_provenance_is_unavailable() -> None:
+    source = "src/cisco_assessment/devtools/pr_review/example.py"
+    test = "tests/unit/devtools/pr_review/test_example.py"
+    backend = FakeGitHubBackend(
+        diff_text=_diff(source, "VALUE = 1"),
+        files=(_file(source), _file(test)),
+        checkout_available=False,
+    )
+
+    report = review_pr(
+        _request(ComponentId.CI_TOOLING, ComponentId.TESTING_FIXTURES),
+        backend,
+    )
+
+    assert report.decision is ReviewDecision.BLOCKED
 
 
 def test_review_pr_blocks_when_current_base_head_is_unavailable() -> None:
@@ -293,10 +359,12 @@ def _context(
     repository: str = "owner/repo",
     base_branch: str = "main",
     base_branch_head_sha: str | None = "base-sha",
+    workflow_base_sha: str | None = None,
     mergeable: bool | None = True,
     workflow_status: str = "completed",
     workflow_conclusion: str | None = "success",
 ) -> PullRequestContext:
+    effective_workflow_base = workflow_base_sha or base_branch_head_sha or "base-sha"
     return PullRequestContext(
         repository=repository,
         pr_number=42,
@@ -329,6 +397,16 @@ def _context(
                 head_sha="head-sha",
                 status=workflow_status,
                 conclusion=workflow_conclusion,
+                event="pull_request",
+                pull_request_number=42,
+                pull_request_base_sha=effective_workflow_base,
+                pull_request_head_sha="head-sha",
+                checkout=GitHubCheckoutProvenance(
+                    ref="refs/pull/42/merge",
+                    sha="merge-sha",
+                    base_sha=effective_workflow_base,
+                    head_sha="head-sha",
+                ),
             ),
         ),
     )
