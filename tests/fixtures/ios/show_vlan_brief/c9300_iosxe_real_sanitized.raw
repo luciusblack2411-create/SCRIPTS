@@ -1,0 +1,42 @@
+show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Gi1/0/2, Gi1/0/3, Gi1/0/4
+                                                Gi1/0/5, Gi1/0/6, Gi1/0/7
+                                                Gi1/0/8, Gi1/0/9, Gi1/0/10
+                                                Gi1/0/11, Gi1/0/12, Gi1/0/13
+                                                Gi1/0/14, Gi1/0/15, Gi1/0/16
+                                                Gi1/0/17, Gi1/0/18, Gi1/0/19
+                                                Gi1/0/20, Gi1/0/21, Gi1/0/22
+                                                Gi1/0/23, Gi1/0/24, Gi1/1/1
+                                                Gi1/1/2, Gi1/1/3, Gi1/1/4
+                                                Gi2/0/2, Gi2/0/3, Gi2/0/4
+                                                Gi2/0/5, Gi2/0/6, Gi2/0/7
+                                                Gi2/0/8, Gi2/0/9, Gi2/0/10
+                                                Gi2/0/11, Gi2/0/12, Gi2/0/13
+                                                Gi2/0/14, Gi2/0/15, Gi2/0/16
+                                                Gi2/0/17, Gi2/0/18, Gi2/0/19
+                                                Gi2/0/20, Gi2/0/21, Gi2/0/22
+                                                Gi2/0/23, Gi2/0/24, Gi2/1/1
+                                                Gi2/1/2, Gi2/1/3, Gi2/1/4
+2    LAB_Users                        active    
+20   VoIP                             active    
+ --More--         
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+23   WIFI_LABclients                  active    
+24   WIFI_LAB-any                     active    
+27   WIFI_LAB-zone1                   active    
+28   Mgmt                             active    
+29   LAB1_Servers                     active    
+30   LAB                              active    
+34   CAM_LAB                          active    
+36   TEST_Server                      active    
+41   MGMT_Tool1                       active    
+301  Native_VLAN                      active    
+1002 fddi-default                     act/unsup 
+1003 trcrf-default                    act/unsup 
+1004 fddinet-default                  act/unsup 
+1005 trbrf-default                    act/unsup 
+LAB_SWITCH01#

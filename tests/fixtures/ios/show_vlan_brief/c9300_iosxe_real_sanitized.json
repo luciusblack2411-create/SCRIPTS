@@ -1,0 +1,22 @@
+{
+  "source": "sanitized-real-device-capture",
+  "command_id": "vlans.brief",
+  "cli": "show vlan brief",
+  "platform": "ios_xe",
+  "original": {
+    "byte_length": 2522,
+    "sha256": "16bb1794ce7faa112f65ea20b01a8410fce789c0e7b12090eca7836d929f2bd7",
+    "stored_in_repository": false
+  },
+  "sanitized_fixture": {
+    "byte_length": 2522,
+    "sha256": "2e6d3d49fe2618a0b72a4d69c05704422cde736bf29d5a9cfe6982617905efd1",
+    "terminal_artifacts": {
+      "--More--": 1,
+      "backspace": 18,
+      "cr": 41,
+      "lf": 41
+    }
+  },
+  "sanitization": "Site-specific VLAN labels and the prompt were replaced with equal-length neutral tokens. CR/LF, spacing, column widths, pagination marker, backspaces, VLAN IDs, statuses, ports, line count, and total byte length were preserved."
+}
