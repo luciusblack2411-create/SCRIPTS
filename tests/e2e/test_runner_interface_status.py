@@ -99,7 +99,7 @@ def test_interface_status_vertical_slice_assesses_and_reports_with_raw_trace(
     assert len(result.raw_outputs) == 2
 
     version_execution, interface_execution = result.command_executions
-    version_raw, interface_raw = result.raw_outputs
+    _version_raw, interface_raw = result.raw_outputs
     assert [version_execution.sequence, interface_execution.sequence] == [1, 2]
     assert version_execution.status is CommandExecutionStatus.SUCCESS
     assert interface_execution.status is CommandExecutionStatus.SUCCESS
