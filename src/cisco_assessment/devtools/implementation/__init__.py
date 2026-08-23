@@ -17,12 +17,26 @@ from .enums import (
     ImplementationPlanStepKind,
 )
 from .gate_ids import ImplementationGateId
+from .github_mutation import (
+    GitHubImplementationMutationBackend,
+    GitHubImplementationMutationHttpTransport,
+    ImplementationGitHubMutationError,
+    UrllibGitHubImplementationMutationTransport,
+)
 from .github_rest import GitHubImplementationReadBackend, ImplementationGitHubRestError
 from .models import (
     ImplementationEvidence,
     ImplementationGate,
     ImplementationReadinessReport,
     ImplementationRequest,
+)
+from .mutation import (
+    ImplementationMutationBackend,
+    ImplementationMutationChangeResult,
+    ImplementationMutationError,
+    ImplementationMutationResult,
+    ImplementationMutationTreeEntry,
+    execute_work_branch_mutation,
 )
 from .planning import (
     ImplementationPlan,
@@ -48,6 +62,8 @@ from .workspace import (
 
 __all__ = [
     "ComponentId",
+    "GitHubImplementationMutationBackend",
+    "GitHubImplementationMutationHttpTransport",
     "GitHubImplementationReadBackend",
     "ImplementationAuthorization",
     "ImplementationContext",
@@ -61,7 +77,13 @@ __all__ = [
     "ImplementationGate",
     "ImplementationGateId",
     "ImplementationGateStatus",
+    "ImplementationGitHubMutationError",
     "ImplementationGitHubRestError",
+    "ImplementationMutationBackend",
+    "ImplementationMutationChangeResult",
+    "ImplementationMutationError",
+    "ImplementationMutationResult",
+    "ImplementationMutationTreeEntry",
     "ImplementationPlan",
     "ImplementationPlanStep",
     "ImplementationPlanStepKind",
@@ -76,9 +98,11 @@ __all__ = [
     "ImplementationSourceReadBackend",
     "ImplementationWorkspace",
     "ImplementationWorkspaceError",
+    "UrllibGitHubImplementationMutationTransport",
     "build_implementation_plan",
     "build_implementation_workspace",
     "evaluate_implementation_readiness",
+    "execute_work_branch_mutation",
     "inspect_implementation_sources",
     "load_implementation_context",
 ]
