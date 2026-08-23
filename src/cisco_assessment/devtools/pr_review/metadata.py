@@ -27,6 +27,7 @@ def evaluate_metadata_checks(
         _evaluate_open_state(context),
         _evaluate_mergeability(context),
         _evaluate_diff_availability(context),
+        _evaluate_base_head_freshness(context),
     )
 
 
@@ -140,6 +141,77 @@ def _evaluate_diff_availability(context: PullRequestContext) -> ReviewCheck:
         evidence=(),
         findings=(),
         blocking=True,
+    )
+
+
+def _evaluate_base_head_freshness(context: PullRequestContext) -> ReviewCheck:
+    check_id = ReviewCheckId.GIT_005
+    name = "Current base branch HEAD is independently observed"
+    if context.base_branch_head_sha is None:
+        return ReviewCheck(
+            check_id=check_id,
+            name=name,
+            category="GIT",
+            status=ReviewCheckStatus.UNKNOWN,
+            applicable=True,
+            summary=(
+                f"The current HEAD of base branch {context.base_branch!r} could not be observed."
+            ),
+            evidence=(),
+            findings=(),
+            blocking=True,
+        )
+
+    evidence = ReviewEvidence(
+        evidence_id=f"{check_id.value}:ev:001",
+        kind=ReviewEvidenceKind.COMMIT,
+        description=(
+            "Independent current base-branch HEAD compared with the base SHA embedded in the PR payload."
+        ),
+        commit_sha=context.base_branch_head_sha,
+        check_id=check_id,
+        observed_value=context.base_branch_head_sha,
+        expected_value=context.base_sha,
+    )
+    if context.base_branch_head_sha == context.base_sha:
+        return ReviewCheck(
+            check_id=check_id,
+            name=name,
+            category="GIT",
+            status=ReviewCheckStatus.PASS,
+            applicable=True,
+            summary="PR base SHA matches the independently observed current base-branch HEAD.",
+            evidence=(evidence,),
+            findings=(),
+            blocking=False,
+        )
+
+    finding = ReviewFinding(
+        finding_id=f"{check_id.value}:001",
+        check_id=check_id,
+        severity=ReviewFindingSeverity.WARNING,
+        title="Base branch advanced beyond the PR base snapshot",
+        observation=(
+            f"The PR payload records base SHA {context.base_sha}, while current "
+            f"{context.base_branch!r} HEAD is {context.base_branch_head_sha}."
+        ),
+        evidence=(evidence,),
+        recommendation=(
+            "Treat the base advancement as review context. GitHub pull requests use a three-dot "
+            "comparison from the merge base to the topic head, so SHA divergence alone is not a "
+            "review failure; also consider current mergeability and current-head CI evidence."
+        ),
+    )
+    return ReviewCheck(
+        check_id=check_id,
+        name=name,
+        category="GIT",
+        status=ReviewCheckStatus.WARNING,
+        applicable=True,
+        summary="Current base HEAD differs from the base SHA recorded in the PR payload.",
+        evidence=(evidence,),
+        findings=(finding,),
+        blocking=False,
     )
 
 
