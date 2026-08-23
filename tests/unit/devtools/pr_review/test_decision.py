@@ -19,6 +19,16 @@ def _check(
     blocking: bool = True,
     check_id: ReviewCheckId = ReviewCheckId.SCOPE_001,
 ) -> ReviewCheck:
+    evidence = ()
+    if blocking and status is ReviewCheckStatus.FAIL:
+        evidence = (
+            ReviewEvidence(
+                evidence_id=f"{check_id.value}:ev-001",
+                kind=ReviewEvidenceKind.DIFF,
+                description="Synthetic failing-check evidence.",
+                check_id=check_id,
+            ),
+        )
     return ReviewCheck(
         check_id=check_id,
         name="Scope check",
@@ -26,7 +36,7 @@ def _check(
         status=status,
         applicable=status is not ReviewCheckStatus.NOT_APPLICABLE,
         summary="Synthetic decision-engine check.",
-        evidence=(),
+        evidence=evidence,
         findings=(),
         blocking=blocking,
     )
