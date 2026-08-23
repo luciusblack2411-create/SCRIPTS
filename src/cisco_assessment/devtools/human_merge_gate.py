@@ -258,8 +258,8 @@ def _validate_merged_pr(payload: Mapping[str, object], report: ReviewReport) -> 
         raise HumanMergeError("merged pull request unexpectedly returned to Draft")
     if _require_bool(payload, "merged") is not True:
         raise HumanMergeError("GitHub read-back did not confirm merged=true")
-    base = _require_mapping(payload, "base")
-    head = _require_mapping(payload, "head")
+    base = _require_mapping(payload.get("base"), "base")
+    head = _require_mapping(payload.get("head"), "head")
     if _require_str(base, "ref") != report.base_branch:
         raise HumanMergeError("merged pull request base branch changed unexpectedly")
     if _require_str(head, "ref") != report.head_branch:
@@ -269,8 +269,8 @@ def _validate_merged_pr(payload: Mapping[str, object], report: ReviewReport) -> 
 
 
 def _validate_live_refs(payload: Mapping[str, object], report: ReviewReport) -> None:
-    base = _require_mapping(payload, "base")
-    head = _require_mapping(payload, "head")
+    base = _require_mapping(payload.get("base"), "base")
+    head = _require_mapping(payload.get("head"), "head")
     if _require_str(base, "ref") != report.base_branch or _require_str(base, "sha") != report.base_sha:
         raise HumanMergeError("pull request base ref/SHA no longer matches reviewed evidence")
     if _require_str(head, "ref") != report.head_branch or _require_str(head, "sha") != report.head_sha:
@@ -300,7 +300,7 @@ def _validate_merge_commit_parents(
 def _branch_sha(payload: Mapping[str, object] | None, label: str) -> str:
     if payload is None:
         raise HumanMergeError(f"{label} is unavailable")
-    commit = _require_mapping(payload, "commit")
+    commit = _require_mapping(payload.get("commit"), "commit")
     return _require_str(commit, "sha")
 
 
