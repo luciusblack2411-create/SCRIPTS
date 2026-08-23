@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 cisco-assessment = "cisco_assessment.cli:app"
+cisco-pr-review = "cisco_assessment.devtools.pr_review.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cisco_assessment"]
