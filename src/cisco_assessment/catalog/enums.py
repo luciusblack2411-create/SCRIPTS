@@ -80,6 +80,7 @@ class NormalizedModelId(StrEnum):
     STACK_INFO = "StackInfo"
     REDUNDANCY_INFO = "RedundancyInfo"
     INTERFACE_OBSERVATION = "InterfaceObservation"
+    VLAN_OBSERVATION = "VlanObservation"
     VLAN_INFO = "VlanInfo"
     SPANNING_TREE_SUMMARY = "SpanningTreeSummary"
     SPANNING_TREE_INSTANCE = "SpanningTreeInstance"
