@@ -53,3 +53,6 @@ jobs:
 
       - name: Draft PR control-plane CLI smoke test
         run: cisco-draft-pr-control --help
+
+      - name: Ready-for-Review control-plane CLI smoke test
+        run: cisco-ready-for-review-control --help
