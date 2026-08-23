@@ -25,6 +25,18 @@ from .draft_pr import (
     ImplementationDraftPrResult,
     prepare_implementation_draft_pr,
 )
+from .draft_pr_control_plane import (
+    DRAFT_PR_CONTROL_PLANE_TOKEN_ENV,
+    ImplementationDraftPrControlPlaneError,
+    ImplementationDraftPrControlPlaneFileError,
+    ImplementationDraftPrControlPlaneOperation,
+    ImplementationDraftPrControlPlaneResult,
+    execute_draft_pr_control_plane,
+    load_draft_pr_control_plane_operation,
+    render_draft_pr_control_plane_result_human,
+    render_draft_pr_control_plane_result_json,
+    resolve_draft_pr_control_plane_token,
+)
 from .enums import (
     ImplementationAuthorization,
     ImplementationDecision,
@@ -99,6 +111,7 @@ from .workspace import (
 )
 
 __all__ = [
+    "DRAFT_PR_CONTROL_PLANE_TOKEN_ENV",
     "ComponentId",
     "GitHubImplementationCiBackend",
     "GitHubImplementationCiHttpTransport",
@@ -118,6 +131,10 @@ __all__ = [
     "ImplementationContextFile",
     "ImplementationDecision",
     "ImplementationDraftPrBackend",
+    "ImplementationDraftPrControlPlaneError",
+    "ImplementationDraftPrControlPlaneFileError",
+    "ImplementationDraftPrControlPlaneOperation",
+    "ImplementationDraftPrControlPlaneResult",
     "ImplementationDraftPrDecision",
     "ImplementationDraftPrError",
     "ImplementationDraftPrRequest",
@@ -162,13 +179,18 @@ __all__ = [
     "build_implementation_plan",
     "build_implementation_workspace",
     "evaluate_implementation_readiness",
+    "execute_draft_pr_control_plane",
     "execute_implementation_operation",
     "execute_work_branch_mutation",
     "inspect_implementation_sources",
+    "load_draft_pr_control_plane_operation",
     "load_implementation_context",
     "load_implementation_operation",
     "prepare_implementation_draft_pr",
+    "render_draft_pr_control_plane_result_human",
+    "render_draft_pr_control_plane_result_json",
     "render_implementation_result_human",
     "render_implementation_result_json",
+    "resolve_draft_pr_control_plane_token",
     "validate_work_branch_ci",
 ]

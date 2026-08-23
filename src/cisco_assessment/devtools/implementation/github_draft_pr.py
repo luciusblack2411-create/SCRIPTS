@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 from urllib.error import HTTPError, URLError
@@ -101,8 +100,9 @@ class GitHubImplementationDraftPrBackend:
     def __init__(
         self,
         transport: GitHubImplementationDraftPrHttpTransport | None = None,
+        *,
+        token: str | None = None,
     ) -> None:
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
         self._transport = transport or UrllibGitHubImplementationDraftPrTransport(token=token)
         self._reader = GitHubImplementationReadBackend(transport=self._transport)
 

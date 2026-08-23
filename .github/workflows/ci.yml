@@ -50,3 +50,6 @@ jobs:
 
       - name: Implementation CLI smoke test
         run: cisco-implementation --help
+
+      - name: Draft PR control-plane CLI smoke test
+        run: cisco-draft-pr-control --help
