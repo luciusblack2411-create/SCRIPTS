@@ -1,0 +1,180 @@
+name: Implementation Draft PR Control Plane Pilot Prep
+
+on:
+  push:
+    branches:
+      - agent/implementation/draft-pr-control-plane-pilot-runner-v0.1
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BASE_SHA: d92a01358c5986b9bd77851574c59c49ced62c22
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install -e '.[dev]'
+
+      - name: Build exact implementation operation
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import os
+          from pathlib import Path
+
+          from cisco_assessment.devtools.implementation import (
+              ComponentId,
+              ImplementationAuthorization,
+              ImplementationFileChangeKind,
+              ImplementationOperation,
+              ImplementationProposedFileChange,
+              ImplementationRequest,
+              ImplementationWorkspace,
+          )
+
+          run_id = os.environ["GITHUB_RUN_ID"]
+          base_sha = os.environ["BASE_SHA"]
+          work_branch = f"agent/implementation/draft-pr-control-plane-pilot-{run_id}"
+          marker_path = (
+              "tests/unit/devtools/implementation/"
+              f"draft_pr_control_plane_pilot_marker_{run_id}.py"
+          )
+          marker_content = "def test_draft_pr_control_plane_pilot_marker():\n    assert True\n"
+          marker_bytes = marker_content.encode("utf-8")
+          objective = "Validate dedicated Draft PR control-plane creation end-to-end."
+
+          request = ImplementationRequest(
+              repository="luciusblack2411-create/SCRIPTS",
+              objective=objective,
+              authorized_components=(ComponentId.TESTING_FIXTURES,),
+              prohibited_components=(ComponentId.COLLECTOR,),
+              contracts_to_preserve=("IMPLEMENTATION_AGENT_V1",),
+              invariants=("No Cisco execution.", "Human merge gate remains mandatory."),
+              acceptance_criteria=("Exact work-branch CI passes.",),
+              contract_approved=True,
+              authorization=ImplementationAuthorization.WORK_BRANCH,
+          )
+          workspace = ImplementationWorkspace(
+              repository=request.repository,
+              base_branch="main",
+              base_sha=base_sha,
+              objective=objective,
+              authorization=ImplementationAuthorization.WORK_BRANCH,
+              plan_step_ids=("impl-step:0001",),
+              inspected_paths=(
+                  "tests/unit/devtools/implementation/test_draft_pr_control_plane.py",
+              ),
+              contracts_to_preserve=("IMPLEMENTATION_AGENT_V1",),
+              acceptance_criteria=("Exact work-branch CI passes.",),
+              changes=(
+                  ImplementationProposedFileChange(
+                      ordinal=1,
+                      change_id="impl-change:0001",
+                      kind=ImplementationFileChangeKind.CREATE,
+                      path=marker_path,
+                      component=ComponentId.TESTING_FIXTURES,
+                      proposed_content_sha256=hashlib.sha256(marker_bytes).hexdigest(),
+                      proposed_byte_size=len(marker_bytes),
+                      proposed_content=marker_content,
+                      rationale=(
+                          "Exercise dedicated Draft PR control-plane preparation with a "
+                          "disposable testing-only change."
+                      ),
+                      acceptance_criteria=("Exact work-branch CI passes.",),
+                  ),
+              ),
+          )
+          operation = ImplementationOperation(
+              request=request,
+              workspace=workspace,
+              work_branch=work_branch,
+              commit_message=(
+                  "test(devtools): create disposable Draft PR control-plane pilot marker"
+              ),
+          )
+          Path("pilot_operation.json").write_text(
+              operation.model_dump_json(indent=2), encoding="utf-8"
+          )
+          PY
+
+      - name: Execute implementation operation
+        run: cisco-implementation run pilot_operation.json --output json > operational_result.json
+
+      - name: Build exact Draft PR control-plane operation
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+
+          from cisco_assessment.devtools.implementation import (
+              ImplementationAuthorization,
+              ImplementationDraftPrControlPlaneOperation,
+              ImplementationDraftPrRequest,
+              ImplementationOperationalDecision,
+              ImplementationOperationalResult,
+          )
+
+          operational = ImplementationOperationalResult.model_validate_json(
+              Path("operational_result.json").read_text(encoding="utf-8")
+          )
+          assert operational.decision is ImplementationOperationalDecision.READY_FOR_DRAFT_PR
+          run_id = os.environ["GITHUB_RUN_ID"]
+          request = ImplementationDraftPrRequest(
+              repository=operational.repository,
+              objective=operational.objective,
+              base_branch=operational.mutation.base_branch,
+              base_sha=operational.mutation.base_sha,
+              work_branch=operational.mutation.work_branch,
+              commit_sha=operational.mutation.commit_sha,
+              title=f"test(devtools): disposable Draft PR control-plane pilot {run_id}",
+              body=(
+                  "Disposable REAL E2E validation for dedicated Draft PR control-plane creation.\n\n"
+                  f"Operational decision: {operational.decision.value}\n"
+                  f"Base SHA: {operational.mutation.base_sha}\n"
+                  f"Work branch: {operational.mutation.work_branch}\n"
+                  f"Commit SHA: {operational.mutation.commit_sha}\n\n"
+                  "This PR must remain draft and must never be merged."
+              ),
+              authorization=ImplementationAuthorization.DRAFT_PR,
+          )
+          control_operation = ImplementationDraftPrControlPlaneOperation(
+              operational_result=operational,
+              request=request,
+          )
+          Path("draft_pr_control_operation.json").write_text(
+              control_operation.model_dump_json(indent=2), encoding="utf-8"
+          )
+          PY
+
+      - name: Upload pilot evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: draft-pr-control-plane-pilot-evidence
+          path: |
+            operational_result.json
+            draft_pr_control_operation.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Show non-secret evidence
+        if: always()
+        run: |
+          test -f operational_result.json && cat operational_result.json || true
+          test -f draft_pr_control_operation.json && cat draft_pr_control_operation.json || true
