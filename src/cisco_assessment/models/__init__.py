@@ -18,10 +18,17 @@ from .normalized import (
     hardware_inventory_record_id,
 )
 from .raw import RawCommandOutput
+from .vlan import (
+    VLAN_OBSERVATION_SCHEMA_VERSION,
+    VlanObservation,
+    VlanRecord,
+    VlanStatus,
+)
 
 __all__ = [
     "HARDWARE_INVENTORY_SCHEMA_VERSION",
     "INTERFACE_OBSERVATION_SCHEMA_VERSION",
+    "VLAN_OBSERVATION_SCHEMA_VERSION",
     "AssessmentRun",
     "AssessmentRunStatus",
     "CommandExecution",
@@ -36,5 +43,8 @@ __all__ = [
     "InterfaceStatusRecord",
     "PlatformFamily",
     "RawCommandOutput",
+    "VlanObservation",
+    "VlanRecord",
+    "VlanStatus",
     "hardware_inventory_record_id",
 ]
