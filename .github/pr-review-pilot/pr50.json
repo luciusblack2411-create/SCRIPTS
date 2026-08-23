@@ -1,0 +1,31 @@
+{
+  "repository": "luciusblack2411-create/SCRIPTS",
+  "pr_number": 50,
+  "expected_base_branch": "main",
+  "objective": "Positive shadow-review of a documentation-only PR using PR_REVIEW_AGENT_V1 against a current base/head pair.",
+  "expected_components": [
+    "DOCUMENTATION"
+  ],
+  "prohibited_components": [
+    "COLLECTOR",
+    "COMMAND_CATALOG",
+    "RAW_MODELS",
+    "NORMALIZED_MODELS",
+    "PARSER",
+    "ENGINE",
+    "RULES",
+    "TESTING_FIXTURES",
+    "REPORTING",
+    "ASSESSMENT_PLAN",
+    "RUNNER_CLI",
+    "CI_TOOLING"
+  ],
+  "expected_contracts": [],
+  "invariants": [
+    "The pilot target is documentation-only.",
+    "No productive Cisco assessment component is modified.",
+    "Successful pull-request CI must prove the current base/head merge checkout."
+  ],
+  "handoff_text": "Controlled positive APPROVE pilot for PR_REVIEW_AGENT_V1.",
+  "require_ci_success": true
+}
