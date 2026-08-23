@@ -36,6 +36,11 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def main() -> None:
+    """Expose explicit devtools subcommands without changing the productive Cisco CLI."""
+
+
 @app.command("run")
 def run_review(
     request_file: Annotated[
