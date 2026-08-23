@@ -40,7 +40,7 @@ class VlanRecord(BaseModel):
 
     ordinal: VlanOrdinal
     vlan_id: VlanId
-    name: str | None
+    name: str | None = Field(max_length=32)
     status: VlanStatus
     ports: tuple[str, ...] | None
 
