@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from email.message import Message
+from typing import Self
 from urllib.request import HTTPRedirectHandler, Request
 
 import pytest
@@ -10,8 +11,8 @@ from cisco_assessment.devtools.pr_review import (
     GitHubRestError,
     GitHubRestReadBackend,
     UrllibGitHubTransport,
+    github_rest,
 )
-from cisco_assessment.devtools.pr_review import github_rest
 
 
 class FakeTransport:
@@ -230,7 +231,7 @@ def test_authorization_is_not_forwarded_by_urllib_redirects(
     requests: list[Request] = []
 
     class FakeResponse:
-        def __enter__(self) -> FakeResponse:
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *args: object) -> None:
