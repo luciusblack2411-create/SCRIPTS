@@ -26,5 +26,6 @@
     "Reporting does not parse Cisco CLI or query devices.",
     "Collector, Parser, Rules, AssessmentPlan and Runner remain unchanged."
   ],
+  "handoff_text": "Shadow pilot rerun after GitHub job-log media-type fix.",
   "require_ci_success": true
 }
