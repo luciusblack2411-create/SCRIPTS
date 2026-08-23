@@ -145,7 +145,7 @@ def test_workflow_checkout_provenance_uses_event_metadata_and_real_checkout_log(
     transport.add_json(jobs_path, {"jobs": [{"id": 971}]})
     transport.add_text(
         logs_path,
-        accept="text/plain",
+        accept="application/vnd.github+json",
         response=(
             "git -c protocol.version=2 fetch --no-tags origin "
             "+1111111111111111111111111111111111111111:refs/remotes/pull/37/merge\n"
@@ -164,6 +164,7 @@ def test_workflow_checkout_provenance_uses_event_metadata_and_real_checkout_log(
         "base_sha": "base-sha",
         "head_sha": "head-sha",
     }
+    assert transport.text_calls == [(logs_path, "application/vnd.github+json")]
 
 
 def test_checkout_provenance_can_fall_back_to_exact_merge_message() -> None:
@@ -173,7 +174,7 @@ def test_checkout_provenance_can_fall_back_to_exact_merge_message() -> None:
     transport.add_json(jobs_path, {"jobs": [{"id": 971}]})
     transport.add_text(
         logs_path,
-        accept="text/plain",
+        accept="application/vnd.github+json",
         response=(
             "git fetch origin "
             "+1111111111111111111111111111111111111111:refs/remotes/pull/37/merge\n"
@@ -194,6 +195,7 @@ def test_checkout_provenance_can_fall_back_to_exact_merge_message() -> None:
         "base_sha": "3333333333333333333333333333333333333333",
         "head_sha": "2222222222222222222222222222222222222222",
     }
+    assert transport.text_calls == [(logs_path, "application/vnd.github+json")]
 
 
 def test_checkout_provenance_rejects_non_merge_checkout() -> None:
@@ -203,7 +205,7 @@ def test_checkout_provenance_rejects_non_merge_checkout() -> None:
     transport.add_json(jobs_path, {"jobs": [{"id": 971}]})
     transport.add_text(
         logs_path,
-        accept="text/plain",
+        accept="application/vnd.github+json",
         response="git checkout --force refs/heads/main\n",
     )
 
@@ -212,6 +214,7 @@ def test_checkout_provenance_rejects_non_merge_checkout() -> None:
     )
 
     assert provenance is None
+    assert transport.text_calls == [(logs_path, "application/vnd.github+json")]
 
 
 def test_branch_404_is_observed_as_unavailable_without_inference() -> None:
