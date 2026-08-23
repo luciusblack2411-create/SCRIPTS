@@ -17,6 +17,8 @@ class ParserErrorCode(StrEnum):
     DUPLICATE_PARSER = "duplicate_parser"
     UNSUPPORTED_PLATFORM = "unsupported_platform"
     UNRECOGNIZED_FORMAT = "unrecognized_format"
+    GENIE_DEPENDENCY = "genie_dependency"
+    GENIE_EXTRACTION = "genie_extraction"
 
 
 class ParserError(Exception):
@@ -90,3 +92,15 @@ class UnsupportedPlatformError(ParserError):
 
 class UnrecognizedFormatError(ParserError):
     code = ParserErrorCode.UNRECOGNIZED_FORMAT
+
+
+class GenieDependencyError(ParserError):
+    """Required Genie parser/runtime components are unavailable."""
+
+    code = ParserErrorCode.GENIE_DEPENDENCY
+
+
+class GenieExtractionError(ParserError):
+    """Genie failed while extracting already-collected RAW text."""
+
+    code = ParserErrorCode.GENIE_EXTRACTION
