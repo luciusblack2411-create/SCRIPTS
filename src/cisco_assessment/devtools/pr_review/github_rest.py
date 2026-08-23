@@ -74,7 +74,7 @@ class UrllibGitHubTransport:
         request = Request(f"{self._api_base_url}{path}", headers=headers, method="GET")
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:
-                return response.read()
+                data: object = response.read()
         except HTTPError as exc:
             raise GitHubRestError(
                 f"GitHub REST GET {path!r} failed with HTTP {exc.code}",
@@ -82,6 +82,9 @@ class UrllibGitHubTransport:
             ) from exc
         except URLError as exc:
             raise GitHubRestError(f"GitHub REST GET {path!r} failed: {exc.reason}") from exc
+        if not isinstance(data, bytes):
+            raise GitHubRestError(f"GitHub REST GET {path!r} returned non-bytes response data")
+        return data
 
 
 _FETCH_MERGE_RE = re.compile(
