@@ -25,6 +25,10 @@ class FakeGitHubReadBackend:
             "base": {"ref": "main", "sha": "base-sha"},
             "head": {"ref": "feature", "sha": "head-sha"},
         }
+        self.branch: Mapping[str, object] | None = {
+            "name": "main",
+            "commit": {"sha": "base-sha"},
+        }
         self.files: Sequence[Mapping[str, object]] = (
             {
                 "filename": "src/cisco_assessment/devtools/pr_review/github.py",
@@ -55,6 +59,10 @@ class FakeGitHubReadBackend:
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
         self.calls.append(f"pr:{repository}:{pr_number}")
         return self.pull_request
+
+    def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
+        self.calls.append(f"branch:{repository}:{branch}")
+        return self.branch
 
     def list_pull_request_files(
         self,
@@ -93,6 +101,7 @@ def test_load_pull_request_context_preserves_read_data_and_order() -> None:
 
     assert context.base_branch == "main"
     assert context.base_sha == "base-sha"
+    assert context.base_branch_head_sha == "base-sha"
     assert context.head_branch == "feature"
     assert context.head_sha == "head-sha"
     assert context.diff_text == backend.diff_text
@@ -103,11 +112,39 @@ def test_load_pull_request_context_preserves_read_data_and_order() -> None:
     assert [run.run_id for run in context.workflow_runs] == [137]
     assert backend.calls == [
         "pr:owner/repo:36",
+        "branch:owner/repo:main",
         "files:owner/repo:36",
         "commits:owner/repo:36",
         "diff:owner/repo:36",
         "runs:owner/repo:head-sha",
     ]
+
+
+def test_context_preserves_advanced_current_base_branch_head() -> None:
+    backend = FakeGitHubReadBackend()
+    backend.branch = {"name": "main", "commit": {"sha": "new-main-head"}}
+
+    context = GitHubReadAdapter(backend).load_pull_request_context("owner/repo", 36)
+
+    assert context.base_sha == "base-sha"
+    assert context.base_branch_head_sha == "new-main-head"
+
+
+def test_context_allows_unavailable_current_base_branch_head() -> None:
+    backend = FakeGitHubReadBackend()
+    backend.branch = None
+
+    context = GitHubReadAdapter(backend).load_pull_request_context("owner/repo", 36)
+
+    assert context.base_branch_head_sha is None
+
+
+def test_context_rejects_malformed_observed_branch_head() -> None:
+    backend = FakeGitHubReadBackend()
+    backend.branch = {"name": "main", "commit": {}}
+
+    with pytest.raises(GitHubContextError, match="field 'sha' must be a string"):
+        GitHubReadAdapter(backend).load_pull_request_context("owner/repo", 36)
 
 
 def test_context_rejects_workflow_run_from_stale_head() -> None:
