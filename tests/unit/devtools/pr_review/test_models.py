@@ -37,7 +37,7 @@ def test_review_request_is_frozen_and_forbids_extra_fields() -> None:
     )
 
     with pytest.raises(ValidationError):
-        setattr(request, "objective", "mutated")
+        request.__setattr__("objective", "mutated")
 
     with pytest.raises(ValidationError):
         ReviewRequest.model_validate(
