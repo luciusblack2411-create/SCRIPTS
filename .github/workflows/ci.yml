@@ -29,11 +29,8 @@ jobs:
       - name: Verify dependencies
         run: python -m pip check
 
-      - name: Diagnose import sorting
-        run: |
-          ruff check --select I --fix src/cisco_assessment/devtools/pr_review/scope.py
-          git diff -- src/cisco_assessment/devtools/pr_review/scope.py
-          exit 1
+      - name: Lint
+        run: ruff check .
 
       - name: Type check
         run: mypy src/cisco_assessment
