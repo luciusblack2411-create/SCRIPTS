@@ -49,3 +49,10 @@ class ImplementationPlanStepKind(StrEnum):
     IMPLEMENT_COMPONENT = "IMPLEMENT_COMPONENT"
     VERIFY_ACCEPTANCE = "VERIFY_ACCEPTANCE"
     PREPARE_DRAFT_PR = "PREPARE_DRAFT_PR"
+
+
+class ImplementationFileChangeKind(StrEnum):
+    """Stable proposal-only source-file change kinds supported by v0.1."""
+
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
