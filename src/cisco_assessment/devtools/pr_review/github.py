@@ -36,14 +36,28 @@ class GitHubCommit(GitHubContextModel):
     message: str
 
 
+class GitHubCheckoutProvenance(GitHubContextModel):
+    """Observed checkout of a pull-request merge ref inside one CI workflow run."""
+
+    ref: str = Field(min_length=1)
+    sha: str = Field(min_length=1)
+    base_sha: str = Field(min_length=1)
+    head_sha: str = Field(min_length=1)
+
+
 class GitHubWorkflowRun(GitHubContextModel):
-    """Workflow-run state associated with the current PR head SHA."""
+    """Workflow-run state and optional pull-request checkout provenance."""
 
     run_id: int = Field(gt=0)
     name: str = Field(min_length=1)
     head_sha: str = Field(min_length=1)
     status: str = Field(min_length=1)
     conclusion: str | None = None
+    event: str | None = None
+    pull_request_number: int | None = Field(default=None, gt=0)
+    pull_request_base_sha: str | None = None
+    pull_request_head_sha: str | None = None
+    checkout: GitHubCheckoutProvenance | None = None
 
 
 class PullRequestContext(GitHubContextModel):
@@ -115,6 +129,14 @@ class GitHubReadBackend(Protocol):
         """Return workflow runs associated with the requested commit SHA."""
         ...
 
+    def get_workflow_checkout_provenance(
+        self,
+        repository: str,
+        run_id: int,
+    ) -> Mapping[str, object] | None:
+        """Return observed merge-ref checkout provenance for one workflow run, if provable."""
+        ...
+
 
 class GitHubReadAdapter:
     """Convert external GitHub read payloads into project-owned typed context."""
@@ -154,7 +176,7 @@ class GitHubReadAdapter:
         )
         diff_text = self._backend.get_pull_request_diff(repository, pr_number)
         workflow_runs = tuple(
-            self._parse_workflow_run(item)
+            self._load_workflow_run(repository, pr_number, item)
             for item in self._backend.list_commit_workflow_runs(repository, head_sha)
         )
 
@@ -203,15 +225,65 @@ class GitHubReadAdapter:
             message=_required_str(commit, "message"),
         )
 
-    @staticmethod
-    def _parse_workflow_run(payload: Mapping[str, object]) -> GitHubWorkflowRun:
+    def _load_workflow_run(
+        self,
+        repository: str,
+        pr_number: int,
+        payload: Mapping[str, object],
+    ) -> GitHubWorkflowRun:
+        run_id = _required_int(payload, "id")
+        checkout_payload = self._backend.get_workflow_checkout_provenance(repository, run_id)
+        pull_request_number, pull_request_base_sha, pull_request_head_sha = (
+            _workflow_pull_request_context(payload, pr_number)
+        )
+        checkout = (
+            None
+            if checkout_payload is None
+            else GitHubCheckoutProvenance(
+                ref=_required_str(checkout_payload, "ref"),
+                sha=_required_str(checkout_payload, "sha"),
+                base_sha=_required_str(checkout_payload, "base_sha"),
+                head_sha=_required_str(checkout_payload, "head_sha"),
+            )
+        )
         return GitHubWorkflowRun(
-            run_id=_required_int(payload, "id"),
+            run_id=run_id,
             name=_required_str(payload, "name"),
             head_sha=_required_str(payload, "head_sha"),
             status=_required_str(payload, "status"),
             conclusion=_optional_str(payload, "conclusion"),
+            event=_optional_str(payload, "event"),
+            pull_request_number=pull_request_number,
+            pull_request_base_sha=pull_request_base_sha,
+            pull_request_head_sha=pull_request_head_sha,
+            checkout=checkout,
         )
+
+
+def _workflow_pull_request_context(
+    payload: Mapping[str, object],
+    pr_number: int,
+) -> tuple[int | None, str | None, str | None]:
+    pull_requests = payload.get("pull_requests")
+    if pull_requests is None:
+        return None, None, None
+    if isinstance(pull_requests, (str, bytes)) or not isinstance(pull_requests, Sequence):
+        raise GitHubContextError("GitHub field 'pull_requests' must be an array")
+
+    for item in pull_requests:
+        if not isinstance(item, Mapping):
+            raise GitHubContextError("GitHub pull_requests entries must be objects")
+        item_mapping = cast(Mapping[str, object], item)
+        if _required_int(item_mapping, "number") != pr_number:
+            continue
+        base = _required_mapping(item_mapping, "base")
+        head = _required_mapping(item_mapping, "head")
+        return (
+            pr_number,
+            _required_str(base, "sha"),
+            _required_str(head, "sha"),
+        )
+    return None, None, None
 
 
 def _branch_head_sha(payload: Mapping[str, object]) -> str:
