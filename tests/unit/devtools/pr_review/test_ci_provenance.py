@@ -29,6 +29,7 @@ def _run(
     base_sha: str = "current-base",
     head_sha: str = "head-sha",
     checkout: bool = True,
+    checkout_ref: str = "refs/remotes/pull/42/merge",
 ) -> GitHubWorkflowRun:
     return GitHubWorkflowRun(
         run_id=200,
@@ -42,7 +43,7 @@ def _run(
         pull_request_head_sha=head_sha,
         checkout=(
             GitHubCheckoutProvenance(
-                ref="refs/pull/42/merge",
+                ref=checkout_ref,
                 sha="merge-sha",
                 base_sha=base_sha,
                 head_sha=head_sha,
@@ -78,13 +79,22 @@ def _context(
     )
 
 
-def test_ci_003_passes_with_exact_current_merge_checkout_provenance() -> None:
+def test_ci_003_passes_with_observed_actions_remote_merge_ref() -> None:
     check = evaluate_ci_merge_provenance(_request(), _context(_run()))
 
     assert check.check_id is ReviewCheckId.CI_003
     assert check.status is ReviewCheckStatus.PASS
     assert check.evidence[0].commit_sha == "merge-sha"
     assert derive_review_decision((check,), ()).decision is ReviewDecision.APPROVE
+
+
+def test_ci_003_also_accepts_canonical_pull_request_merge_ref() -> None:
+    check = evaluate_ci_merge_provenance(
+        _request(),
+        _context(_run(checkout_ref="refs/pull/42/merge")),
+    )
+
+    assert check.status is ReviewCheckStatus.PASS
 
 
 def test_ci_003_routes_proven_stale_merge_checkout_to_human_review() -> None:
