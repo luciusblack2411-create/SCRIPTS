@@ -106,6 +106,11 @@ def test_vlan_id_is_strict_and_does_not_coerce_text() -> None:
         )
 
 
+def test_vlan_name_rejects_more_than_32_characters() -> None:
+    with pytest.raises(ValidationError):
+        _record(1, vlan_id=40, name="x" * 33)
+
+
 @pytest.mark.parametrize(
     "records",
     (
