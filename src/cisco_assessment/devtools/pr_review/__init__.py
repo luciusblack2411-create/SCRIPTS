@@ -25,6 +25,13 @@ from .github import (
 from .github_rest import GitHubRestError, GitHubRestReadBackend, UrllibGitHubTransport
 from .metadata import evaluate_metadata_checks
 from .models import ReviewCheck, ReviewEvidence, ReviewFinding, ReviewReport, ReviewRequest
+from .operational import (
+    ReviewRequestFileError,
+    execute_review_request,
+    load_review_request,
+    render_review_report_human,
+    render_review_report_json,
+)
 from .reviewer import build_review_report, review_pr
 from .scope import (
     ChangedFileClassification,
@@ -60,6 +67,7 @@ __all__ = [
     "ReviewFindingSeverity",
     "ReviewReport",
     "ReviewRequest",
+    "ReviewRequestFileError",
     "UrllibGitHubTransport",
     "build_review_report",
     "classify_changed_files",
@@ -71,7 +79,11 @@ __all__ = [
     "evaluate_contract_quality_ci_checks",
     "evaluate_metadata_checks",
     "evaluate_scope_checks",
+    "execute_review_request",
     "extract_added_lines",
     "extract_removed_lines",
+    "load_review_request",
+    "render_review_report_human",
+    "render_review_report_json",
     "review_pr",
 ]
