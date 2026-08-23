@@ -111,27 +111,33 @@ def _request(**updates: object) -> ImplementationDraftPrRequest:
         "authorization": ImplementationAuthorization.DRAFT_PR,
     }
     values.update(updates)
-    return ImplementationDraftPrRequest(**values)  # type: ignore[arg-type]
+    return ImplementationDraftPrRequest.model_validate(values)
 
 
 def _branch(sha: str) -> Mapping[str, object]:
     return {"commit": {"sha": sha}}
 
 
-def _pr_payload() -> Mapping[str, object]:
+def _pr_payload(*, base_sha: str = BASE_SHA) -> Mapping[str, object]:
     return {
         "number": 57,
         "html_url": "https://github.com/owner/repo/pull/57",
         "title": TITLE,
         "state": "open",
         "draft": True,
-        "base": {"ref": "main", "sha": BASE_SHA},
+        "base": {"ref": "main", "sha": base_sha},
         "head": {"ref": WORK_BRANCH, "sha": COMMIT_SHA},
     }
 
 
 class FakeDraftPrBackend:
-    def __init__(self, *, base_after_create: str = BASE_SHA) -> None:
+    def __init__(
+        self,
+        *,
+        base_before_create: str = BASE_SHA,
+        base_after_create: str = BASE_SHA,
+    ) -> None:
+        self.base_before_create = base_before_create
         self.base_after_create = base_after_create
         self.create_calls = 0
         self.base_reads = 0
@@ -141,7 +147,11 @@ class FakeDraftPrBackend:
         assert repository == "owner/repo"
         if branch == "main":
             self.base_reads += 1
-            return _branch(BASE_SHA if self.base_reads == 1 else self.base_after_create)
+            if self.base_reads == 1:
+                return _branch(BASE_SHA)
+            if self.base_reads == 2:
+                return _branch(self.base_before_create)
+            return _branch(self.base_after_create)
         if branch == WORK_BRANCH:
             return _branch(COMMIT_SHA)
         return None
@@ -170,12 +180,12 @@ class FakeDraftPrBackend:
         assert repository == "owner/repo"
         assert (title, body, base_branch, head_branch) == (TITLE, BODY, "main", WORK_BRANCH)
         self.create_calls += 1
-        return _pr_payload()
+        return _pr_payload(base_sha=self.base_after_create)
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
         assert repository == "owner/repo"
         assert pr_number == 57
-        return _pr_payload()
+        return _pr_payload(base_sha=self.base_after_create)
 
 
 def test_prepare_draft_pr_creates_only_verified_draft() -> None:
@@ -206,19 +216,8 @@ def test_prepare_draft_pr_records_post_create_base_drift() -> None:
     assert result.pull_request_ready_for_review is False
 
 
-def test_prepare_draft_pr_rejects_stale_base_before_creation() -> None:
-    backend = FakeDraftPrBackend()
-    backend.base_reads = -1
-    backend.base_after_create = "base-new"
-
-    def stale_get_branch(repository: str, branch: str) -> Mapping[str, object] | None:
-        if branch == "main":
-            return _branch("base-new")
-        if branch == WORK_BRANCH:
-            return _branch(COMMIT_SHA)
-        return None
-
-    backend.get_branch = stale_get_branch  # type: ignore[method-assign]
+def test_prepare_draft_pr_rejects_base_drift_immediately_before_creation() -> None:
+    backend = FakeDraftPrBackend(base_before_create="base-new")
 
     with pytest.raises(ImplementationDraftPrError, match="moved"):
         prepare_implementation_draft_pr(_operational(), _request(), backend)
