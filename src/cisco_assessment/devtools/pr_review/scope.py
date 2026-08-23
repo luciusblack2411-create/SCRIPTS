@@ -6,12 +6,7 @@ from collections.abc import Iterable
 from pathlib import PurePosixPath
 
 from .check_ids import ReviewCheckId
-from .enums import (
-    ComponentId,
-    ReviewCheckStatus,
-    ReviewEvidenceKind,
-    ReviewFindingSeverity,
-)
+from .enums import ComponentId, ReviewCheckStatus, ReviewEvidenceKind, ReviewFindingSeverity
 from .github import GitHubChangedFile, PullRequestContext
 from .models import ReviewCheck, ReviewEvidence, ReviewFinding, ReviewRequest
 
