@@ -13,6 +13,9 @@ from urllib.request import Request, urlopen
 from ..pr_review.github_rest import GitHubHttpTransport, GitHubRestError, UrllibGitHubTransport
 from .github_rest import GitHubImplementationReadBackend, ImplementationGitHubRestError
 
+APPROVED_CI_WORKFLOW_FILE = "ci.yml"
+WORK_BRANCH_PREFIX = "agent/implementation/"
+
 
 class ImplementationGitHubCiError(GitHubRestError):
     """Raised when exact GitHub Actions CI evidence cannot be acquired or dispatched."""
@@ -102,6 +105,7 @@ class GitHubImplementationCiBackend:
         self._reader = GitHubImplementationReadBackend(transport=self._transport)
 
     def dispatch_workflow(self, repository: str, workflow_file: str, ref: str) -> None:
+        _validate_ci_target(workflow_file, ref)
         self._transport.post_no_content(
             f"{_repo_path(repository)}/actions/workflows/{quote(workflow_file, safe='')}/dispatches",
             {"ref": ref},
@@ -115,6 +119,7 @@ class GitHubImplementationCiBackend:
         branch: str,
         head_sha: str,
     ) -> Sequence[Mapping[str, object]]:
+        _validate_ci_target(workflow_file, branch)
         payload = _require_mapping(
             self._get_json(
                 f"{_repo_path(repository)}/actions/workflows/{quote(workflow_file, safe='')}/runs"
@@ -155,6 +160,17 @@ class GitHubImplementationCiBackend:
             return self._transport.get_json(path)
         except GitHubRestError as exc:
             raise ImplementationGitHubCiError(str(exc), status_code=exc.status_code) from exc
+
+
+def _validate_ci_target(workflow_file: str, branch: str) -> None:
+    if workflow_file != APPROVED_CI_WORKFLOW_FILE:
+        raise ImplementationGitHubCiError(
+            f"implementation CI backend only permits {APPROVED_CI_WORKFLOW_FILE!r}"
+        )
+    if not branch.startswith(WORK_BRANCH_PREFIX):
+        raise ImplementationGitHubCiError(
+            f"implementation CI backend only permits {WORK_BRANCH_PREFIX!r} branches"
+        )
 
 
 def _repo_path(repository: str) -> str:
