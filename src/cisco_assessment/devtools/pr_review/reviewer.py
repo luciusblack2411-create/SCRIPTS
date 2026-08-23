@@ -52,6 +52,7 @@ def build_review_report(request: ReviewRequest, context: PullRequestContext) -> 
         pr_number=context.pr_number,
         base_branch=context.base_branch,
         base_sha=context.base_sha,
+        base_branch_head_sha=context.base_branch_head_sha,
         head_branch=context.head_branch,
         head_sha=context.head_sha,
         mergeable=context.mergeable,

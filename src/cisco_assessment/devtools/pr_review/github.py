@@ -58,6 +58,7 @@ class PullRequestContext(GitHubContextModel):
     mergeable: bool | None
     base_branch: str = Field(min_length=1)
     base_sha: str = Field(min_length=1)
+    base_branch_head_sha: str | None = None
     head_branch: str = Field(min_length=1)
     head_sha: str = Field(min_length=1)
     changed_files: tuple[GitHubChangedFile, ...]
@@ -80,6 +81,10 @@ class GitHubReadBackend(Protocol):
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
         """Return one pull-request payload."""
+        ...
+
+    def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
+        """Return current branch metadata, or None when the branch cannot be observed."""
         ...
 
     def list_pull_request_files(
@@ -132,7 +137,12 @@ class GitHubReadAdapter:
 
         base = _required_mapping(pull_request, "base")
         head = _required_mapping(pull_request, "head")
+        base_branch = _required_str(base, "ref")
         head_sha = _required_str(head, "sha")
+        branch_payload = self._backend.get_branch(repository, base_branch)
+        base_branch_head_sha = (
+            None if branch_payload is None else _branch_head_sha(branch_payload)
+        )
 
         changed_files = tuple(
             self._parse_changed_file(item)
@@ -163,8 +173,9 @@ class GitHubReadAdapter:
             state=_required_str(pull_request, "state"),
             draft=_required_bool(pull_request, "draft"),
             mergeable=_optional_bool(pull_request, "mergeable"),
-            base_branch=_required_str(base, "ref"),
+            base_branch=base_branch,
             base_sha=_required_str(base, "sha"),
+            base_branch_head_sha=base_branch_head_sha,
             head_branch=_required_str(head, "ref"),
             head_sha=head_sha,
             changed_files=changed_files,
@@ -201,6 +212,11 @@ class GitHubReadAdapter:
             status=_required_str(payload, "status"),
             conclusion=_optional_str(payload, "conclusion"),
         )
+
+
+def _branch_head_sha(payload: Mapping[str, object]) -> str:
+    commit = _required_mapping(payload, "commit")
+    return _required_str(commit, "sha")
 
 
 def _validate_repository(repository: str) -> None:
