@@ -53,8 +53,22 @@ class FakeGitHubReadBackend:
                 "head_sha": "head-sha",
                 "status": "completed",
                 "conclusion": "success",
+                "event": "pull_request",
+                "pull_requests": [
+                    {
+                        "number": 36,
+                        "base": {"sha": "base-sha"},
+                        "head": {"sha": "head-sha"},
+                    }
+                ],
             },
         )
+        self.checkout: Mapping[str, object] | None = {
+            "ref": "refs/pull/36/merge",
+            "sha": "merge-sha",
+            "base_sha": "base-sha",
+            "head_sha": "head-sha",
+        }
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
         self.calls.append(f"pr:{repository}:{pr_number}")
@@ -92,6 +106,14 @@ class FakeGitHubReadBackend:
         self.calls.append(f"runs:{repository}:{commit_sha}")
         return self.workflow_runs
 
+    def get_workflow_checkout_provenance(
+        self,
+        repository: str,
+        run_id: int,
+    ) -> Mapping[str, object] | None:
+        self.calls.append(f"checkout:{repository}:{run_id}")
+        return self.checkout
+
 
 def test_load_pull_request_context_preserves_read_data_and_order() -> None:
     backend = FakeGitHubReadBackend()
@@ -110,6 +132,14 @@ def test_load_pull_request_context_preserves_read_data_and_order() -> None:
     ]
     assert [item.sha for item in context.commits] == ["commit-1"]
     assert [run.run_id for run in context.workflow_runs] == [137]
+    run = context.workflow_runs[0]
+    assert run.event == "pull_request"
+    assert run.pull_request_number == 36
+    assert run.pull_request_base_sha == "base-sha"
+    assert run.pull_request_head_sha == "head-sha"
+    assert run.checkout is not None
+    assert run.checkout.ref == "refs/pull/36/merge"
+    assert run.checkout.sha == "merge-sha"
     assert backend.calls == [
         "pr:owner/repo:36",
         "branch:owner/repo:main",
@@ -117,6 +147,7 @@ def test_load_pull_request_context_preserves_read_data_and_order() -> None:
         "commits:owner/repo:36",
         "diff:owner/repo:36",
         "runs:owner/repo:head-sha",
+        "checkout:owner/repo:137",
     ]
 
 
@@ -137,6 +168,27 @@ def test_context_allows_unavailable_current_base_branch_head() -> None:
     context = GitHubReadAdapter(backend).load_pull_request_context("owner/repo", 36)
 
     assert context.base_branch_head_sha is None
+
+
+def test_context_allows_unavailable_checkout_provenance() -> None:
+    backend = FakeGitHubReadBackend()
+    backend.checkout = None
+
+    context = GitHubReadAdapter(backend).load_pull_request_context("owner/repo", 36)
+
+    assert context.workflow_runs[0].checkout is None
+
+
+def test_context_rejects_malformed_checkout_provenance() -> None:
+    backend = FakeGitHubReadBackend()
+    backend.checkout = {
+        "ref": "refs/pull/36/merge",
+        "sha": "merge-sha",
+        "base_sha": "base-sha",
+    }
+
+    with pytest.raises(GitHubContextError, match="field 'head_sha' must be a string"):
+        GitHubReadAdapter(backend).load_pull_request_context("owner/repo", 36)
 
 
 def test_context_rejects_malformed_observed_branch_head() -> None:

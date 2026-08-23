@@ -2,6 +2,7 @@
 
 from .architecture import DiffAddedLine, evaluate_architecture_safety_checks, extract_added_lines
 from .check_ids import ReviewCheckId
+from .ci_provenance import evaluate_ci_merge_provenance
 from .contract_ci import DiffRemovedLine, evaluate_contract_quality_ci_checks, extract_removed_lines
 from .decision import DecisionOutcome, derive_review_decision
 from .enums import (
@@ -13,6 +14,7 @@ from .enums import (
 )
 from .github import (
     GitHubChangedFile,
+    GitHubCheckoutProvenance,
     GitHubCommit,
     GitHubContextError,
     GitHubReadAdapter,
@@ -38,6 +40,7 @@ __all__ = [
     "DiffAddedLine",
     "DiffRemovedLine",
     "GitHubChangedFile",
+    "GitHubCheckoutProvenance",
     "GitHubCommit",
     "GitHubContextError",
     "GitHubReadAdapter",
@@ -60,6 +63,7 @@ __all__ = [
     "derive_review_decision",
     "detected_components",
     "evaluate_architecture_safety_checks",
+    "evaluate_ci_merge_provenance",
     "evaluate_contract_quality_ci_checks",
     "evaluate_metadata_checks",
     "evaluate_scope_checks",
