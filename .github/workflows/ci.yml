@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main, "chore/repository-skeleton-v0.1"]
+  workflow_dispatch:
 
 jobs:
   quality:
@@ -46,3 +47,6 @@ jobs:
 
       - name: PR review CLI smoke test
         run: cisco-pr-review --help
+
+      - name: Implementation CLI smoke test
+        run: cisco-implementation --help
