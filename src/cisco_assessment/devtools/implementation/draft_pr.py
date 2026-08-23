@@ -166,6 +166,19 @@ def prepare_implementation_draft_pr(
             "an open pull request already exists for the exact implementation base/head pair"
         )
 
+    # Close the pre-create race as far as the API permits. If main moves after this
+    # observation, the created PR remains draft and post-create evidence records drift.
+    _require_branch_sha(
+        backend.get_branch(request.repository, request.base_branch),
+        request.base_branch,
+        request.base_sha,
+    )
+    _require_branch_sha(
+        backend.get_branch(request.repository, request.work_branch),
+        request.work_branch,
+        request.commit_sha,
+    )
+
     created = backend.create_draft_pull_request(
         request.repository,
         title=request.title,
@@ -240,8 +253,6 @@ def _validate_created_pull_request(
     head = _required_mapping(payload, "head", "pull request")
     if _required_string(base, "ref", "pull request base") != request.base_branch:
         raise ImplementationDraftPrError("created pull request base branch is inconsistent")
-    if _required_string(base, "sha", "pull request base") != request.base_sha:
-        raise ImplementationDraftPrError("created pull request base SHA is inconsistent")
     if _required_string(head, "ref", "pull request head") != request.work_branch:
         raise ImplementationDraftPrError("created pull request head branch is inconsistent")
     if _required_string(head, "sha", "pull request head") != request.commit_sha:
