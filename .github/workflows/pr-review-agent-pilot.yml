@@ -1,8 +1,8 @@
 name: PR Review Agent Pilot
 
 on:
-  push:
-    branches: ["pilot/pr-review-agent-v0.1"]
+  pull_request:
+    branches: [main]
 
 permissions:
   actions: read
