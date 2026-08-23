@@ -150,7 +150,7 @@ def test_review_pr_builds_approve_report_from_read_only_backend() -> None:
     assert report.contracts_changed == ()
 
 
-def test_review_pr_allows_base_advancement_as_evidence_backed_residual_risk() -> None:
+def test_review_pr_routes_base_advancement_to_human_freshness_review() -> None:
     source = "src/cisco_assessment/devtools/pr_review/example.py"
     test = "tests/unit/devtools/pr_review/test_example.py"
     backend = FakeGitHubBackend(
@@ -164,10 +164,12 @@ def test_review_pr_allows_base_advancement_as_evidence_backed_residual_risk() ->
         backend,
     )
 
-    assert report.decision is ReviewDecision.APPROVE
+    assert report.decision is ReviewDecision.NEEDS_HUMAN_REVIEW
     assert report.base_sha == "base-sha"
     assert report.base_branch_head_sha == "new-main-head"
-    assert any(risk.startswith("GIT-005:001:") for risk in report.residual_risks)
+    git_005 = next(finding for finding in report.findings if finding.finding_id == "GIT-005:001")
+    assert git_005.requires_human_decision is True
+    assert report.residual_risks == ()
 
 
 def test_review_pr_blocks_when_current_base_head_is_unavailable() -> None:
