@@ -97,6 +97,16 @@ def test_ci_003_also_accepts_canonical_pull_request_merge_ref() -> None:
     assert check.status is ReviewCheckStatus.PASS
 
 
+def test_ci_003_rejects_unrelated_checkout_ref() -> None:
+    check = evaluate_ci_merge_provenance(
+        _request(),
+        _context(_run(checkout_ref="refs/heads/main")),
+    )
+
+    assert check.status is ReviewCheckStatus.WARNING
+    assert check.findings[0].requires_human_decision is True
+
+
 def test_ci_003_routes_proven_stale_merge_checkout_to_human_review() -> None:
     check = evaluate_ci_merge_provenance(
         _request(),
