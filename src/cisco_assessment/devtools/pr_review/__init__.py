@@ -9,11 +9,27 @@ from .enums import (
     ReviewEvidenceKind,
     ReviewFindingSeverity,
 )
+from .github import (
+    GitHubChangedFile,
+    GitHubCommit,
+    GitHubContextError,
+    GitHubReadAdapter,
+    GitHubReadBackend,
+    GitHubWorkflowRun,
+    PullRequestContext,
+)
 from .models import ReviewCheck, ReviewEvidence, ReviewFinding, ReviewReport, ReviewRequest
 
 __all__ = [
     "ComponentId",
     "DecisionOutcome",
+    "GitHubChangedFile",
+    "GitHubCommit",
+    "GitHubContextError",
+    "GitHubReadAdapter",
+    "GitHubReadBackend",
+    "GitHubWorkflowRun",
+    "PullRequestContext",
     "ReviewCheck",
     "ReviewCheckId",
     "ReviewCheckStatus",
