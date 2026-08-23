@@ -12,6 +12,7 @@ from .enums import (
     ImplementationAuthorization,
     ImplementationDecision,
     ImplementationEvidenceKind,
+    ImplementationFileChangeKind,
     ImplementationGateStatus,
     ImplementationPlanStepKind,
 )
@@ -37,6 +38,13 @@ from .source_inspection import (
     ImplementationSourceReadBackend,
     inspect_implementation_sources,
 )
+from .workspace import (
+    ImplementationFileChangeDraft,
+    ImplementationProposedFileChange,
+    ImplementationWorkspace,
+    ImplementationWorkspaceError,
+    build_implementation_workspace,
+)
 
 __all__ = [
     "ComponentId",
@@ -48,6 +56,8 @@ __all__ = [
     "ImplementationDecision",
     "ImplementationEvidence",
     "ImplementationEvidenceKind",
+    "ImplementationFileChangeDraft",
+    "ImplementationFileChangeKind",
     "ImplementationGate",
     "ImplementationGateId",
     "ImplementationGateStatus",
@@ -56,6 +66,7 @@ __all__ = [
     "ImplementationPlanStep",
     "ImplementationPlanStepKind",
     "ImplementationPlanningError",
+    "ImplementationProposedFileChange",
     "ImplementationReadBackend",
     "ImplementationReadinessReport",
     "ImplementationRequest",
@@ -63,7 +74,10 @@ __all__ = [
     "ImplementationSourceInspection",
     "ImplementationSourceInspectionError",
     "ImplementationSourceReadBackend",
+    "ImplementationWorkspace",
+    "ImplementationWorkspaceError",
     "build_implementation_plan",
+    "build_implementation_workspace",
     "evaluate_implementation_readiness",
     "inspect_implementation_sources",
     "load_implementation_context",
