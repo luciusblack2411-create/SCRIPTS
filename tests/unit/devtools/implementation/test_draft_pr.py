@@ -123,6 +123,7 @@ def _pr_payload(*, base_sha: str = BASE_SHA) -> Mapping[str, object]:
         "number": 57,
         "html_url": "https://github.com/owner/repo/pull/57",
         "title": TITLE,
+        "body": BODY,
         "state": "open",
         "draft": True,
         "base": {"ref": "main", "sha": base_sha},
@@ -247,3 +248,19 @@ def test_prepare_draft_pr_rejects_authorization_not_bound_to_operational_evidenc
 def test_draft_pr_request_requires_explicit_draft_pr_authorization() -> None:
     with pytest.raises(ValidationError, match="DRAFT_PR"):
         _request(authorization=ImplementationAuthorization.WORK_BRANCH)
+
+
+def test_draft_pr_request_requires_authorization_field() -> None:
+    with pytest.raises(ValidationError, match="authorization"):
+        ImplementationDraftPrRequest.model_validate(
+            {
+                "repository": "owner/repo",
+                "objective": OBJECTIVE,
+                "base_branch": "main",
+                "base_sha": BASE_SHA,
+                "work_branch": WORK_BRANCH,
+                "commit_sha": COMMIT_SHA,
+                "title": TITLE,
+                "body": BODY,
+            }
+        )
