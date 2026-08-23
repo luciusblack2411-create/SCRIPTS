@@ -13,6 +13,7 @@ from .ci_validation import (
     ImplementationOperationalDecision,
     validate_work_branch_ci,
 )
+from .enums import ImplementationAuthorization
 from .github_ci import GitHubImplementationCiBackend
 from .github_mutation import GitHubImplementationMutationBackend
 from .models import AGENT_ID, SCHEMA_VERSION, FrozenImplementationModel, ImplementationRequest
@@ -37,7 +38,7 @@ class ImplementationOperation(FrozenImplementationModel):
     workspace: ImplementationWorkspace
     work_branch: str = Field(min_length=1)
     commit_message: str = Field(min_length=1)
-    workflow_file: str = Field(default="ci.yml", min_length=1)
+    workflow_file: Literal["ci.yml"] = "ci.yml"
 
     @model_validator(mode="after")
     def validate_operation_contract(self) -> ImplementationOperation:
@@ -49,10 +50,12 @@ class ImplementationOperation(FrozenImplementationModel):
             raise ValueError("operation request and workspace objective must match")
         if self.request.authorization != self.workspace.authorization:
             raise ValueError("operation request and workspace authorization must match")
+        if self.request.authorization is not ImplementationAuthorization.WORK_BRANCH:
+            raise ValueError("operational v0.1 requires WORK_BRANCH authorization exactly")
+        if not self.work_branch.startswith("agent/implementation/"):
+            raise ValueError("work_branch must use the agent/implementation/ namespace")
         if not self.commit_message.strip():
             raise ValueError("commit_message must not be blank")
-        if "/" in self.workflow_file or self.workflow_file in {".", ".."}:
-            raise ValueError("workflow_file must be one workflow file name")
         return self
 
 
