@@ -17,6 +17,14 @@ from .context import (
     ImplementationReadBackend,
     load_implementation_context,
 )
+from .draft_pr import (
+    ImplementationDraftPrBackend,
+    ImplementationDraftPrDecision,
+    ImplementationDraftPrError,
+    ImplementationDraftPrRequest,
+    ImplementationDraftPrResult,
+    prepare_implementation_draft_pr,
+)
 from .enums import (
     ImplementationAuthorization,
     ImplementationDecision,
@@ -31,6 +39,12 @@ from .github_ci import (
     GitHubImplementationCiHttpTransport,
     ImplementationGitHubCiError,
     UrllibGitHubImplementationCiTransport,
+)
+from .github_draft_pr import (
+    GitHubImplementationDraftPrBackend,
+    GitHubImplementationDraftPrHttpTransport,
+    ImplementationGitHubDraftPrError,
+    UrllibGitHubImplementationDraftPrTransport,
 )
 from .github_mutation import (
     GitHubImplementationMutationBackend,
@@ -88,6 +102,8 @@ __all__ = [
     "ComponentId",
     "GitHubImplementationCiBackend",
     "GitHubImplementationCiHttpTransport",
+    "GitHubImplementationDraftPrBackend",
+    "GitHubImplementationDraftPrHttpTransport",
     "GitHubImplementationMutationBackend",
     "GitHubImplementationMutationHttpTransport",
     "GitHubImplementationReadBackend",
@@ -101,6 +117,11 @@ __all__ = [
     "ImplementationContextError",
     "ImplementationContextFile",
     "ImplementationDecision",
+    "ImplementationDraftPrBackend",
+    "ImplementationDraftPrDecision",
+    "ImplementationDraftPrError",
+    "ImplementationDraftPrRequest",
+    "ImplementationDraftPrResult",
     "ImplementationEvidence",
     "ImplementationEvidenceKind",
     "ImplementationFileChangeDraft",
@@ -109,6 +130,7 @@ __all__ = [
     "ImplementationGateId",
     "ImplementationGateStatus",
     "ImplementationGitHubCiError",
+    "ImplementationGitHubDraftPrError",
     "ImplementationGitHubMutationError",
     "ImplementationGitHubRestError",
     "ImplementationMutationBackend",
@@ -135,6 +157,7 @@ __all__ = [
     "ImplementationWorkspace",
     "ImplementationWorkspaceError",
     "UrllibGitHubImplementationCiTransport",
+    "UrllibGitHubImplementationDraftPrTransport",
     "UrllibGitHubImplementationMutationTransport",
     "build_implementation_plan",
     "build_implementation_workspace",
@@ -144,6 +167,7 @@ __all__ = [
     "inspect_implementation_sources",
     "load_implementation_context",
     "load_implementation_operation",
+    "prepare_implementation_draft_pr",
     "render_implementation_result_human",
     "render_implementation_result_json",
     "validate_work_branch_ci",
