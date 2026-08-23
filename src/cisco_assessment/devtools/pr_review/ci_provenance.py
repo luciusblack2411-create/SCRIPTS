@@ -57,7 +57,7 @@ def evaluate_ci_merge_provenance(
 
     fresh = tuple(run for run in successful if _is_fresh_merge_checkout(run, context))
     if fresh:
-        evidence = _run_evidence(check_id, fresh[0], context, ordinal=1)
+        fresh_evidence = _run_evidence(check_id, fresh[0], context, ordinal=1)
         return ReviewCheck(
             check_id=check_id,
             name=name,
@@ -65,7 +65,7 @@ def evaluate_ci_merge_provenance(
             status=ReviewCheckStatus.PASS,
             applicable=True,
             summary="A successful pull-request workflow checked out the current base/head merge result.",
-            evidence=(evidence,),
+            evidence=(fresh_evidence,),
             findings=(),
             blocking=True,
         )
@@ -81,7 +81,7 @@ def evaluate_ci_merge_provenance(
             ),
         )
 
-    evidence = tuple(
+    stale_evidence = tuple(
         _run_evidence(check_id, run, context, ordinal=index)
         for index, run in enumerate(successful, start=1)
     )
@@ -95,7 +95,7 @@ def evaluate_ci_merge_provenance(
                 f"Workflow run {run.run_id} succeeded, but its pull-request event/checkout "
                 "provenance does not match the current base/head pair."
             ),
-            evidence=(evidence[index - 1],),
+            evidence=(stale_evidence[index - 1],),
             recommendation=(
                 "Trigger fresh pull-request CI for the current base/head pair before relying on "
                 "automatic approval, or make an explicit human freshness decision."
@@ -114,7 +114,7 @@ def evaluate_ci_merge_provenance(
             f"{len(successful)} successful workflow run(s) have complete but non-current merge "
             "checkout provenance."
         ),
-        evidence=evidence,
+        evidence=stale_evidence,
         findings=findings,
         blocking=False,
     )
