@@ -1,0 +1,3 @@
+Port         Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1      MEMBER1-ACCESS     connected    10         a-full a-1000 10/100/1000BaseTX
+Gi2/0/3      MEMBER2-ACCESS     notconnect   20           auto   auto 10/100/1000BaseTX
