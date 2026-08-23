@@ -5,7 +5,11 @@ from collections.abc import Mapping, Sequence
 
 import pytest
 
-from cisco_assessment.devtools.implementation import ComponentId, ImplementationContext, ImplementationContextFile
+from cisco_assessment.devtools.implementation import (
+    ComponentId,
+    ImplementationContext,
+    ImplementationContextFile,
+)
 from cisco_assessment.devtools.implementation.source_inspection import (
     ImplementationSourceInspectionError,
     inspect_implementation_sources,
