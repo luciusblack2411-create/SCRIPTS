@@ -11,7 +11,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from ..pr_review.github_rest import GitHubHttpTransport, GitHubRestError, UrllibGitHubTransport
-from .draft_pr import WORK_BRANCH_PREFIX, ImplementationDraftPrError
+from .draft_pr import WORK_BRANCH_PREFIX
 from .github_rest import GitHubImplementationReadBackend, ImplementationGitHubRestError
 
 
