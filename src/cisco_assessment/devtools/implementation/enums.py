@@ -38,3 +38,14 @@ class ImplementationEvidenceKind(StrEnum):
     TEST = "TEST"
     CI = "CI"
     OTHER = "OTHER"
+
+
+class ImplementationPlanStepKind(StrEnum):
+    """Stable kinds of non-executing implementation-plan steps."""
+
+    OBSERVE_CONTEXT = "OBSERVE_CONTEXT"
+    PRESERVE_CONTRACTS = "PRESERVE_CONTRACTS"
+    APPLY_APPROVED_CONTRACT_CHANGES = "APPLY_APPROVED_CONTRACT_CHANGES"
+    IMPLEMENT_COMPONENT = "IMPLEMENT_COMPONENT"
+    VERIFY_ACCEPTANCE = "VERIFY_ACCEPTANCE"
+    PREPARE_DRAFT_PR = "PREPARE_DRAFT_PR"
