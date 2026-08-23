@@ -1,5 +1,6 @@
 """Contracts and deterministic decision logic for PR Review Agent v0.1."""
 
+from .architecture import DiffAddedLine, evaluate_architecture_safety_checks, extract_added_lines
 from .check_ids import ReviewCheckId
 from .decision import DecisionOutcome, derive_review_decision
 from .enums import (
@@ -31,6 +32,7 @@ __all__ = [
     "ChangedFileClassification",
     "ComponentId",
     "DecisionOutcome",
+    "DiffAddedLine",
     "GitHubChangedFile",
     "GitHubCommit",
     "GitHubContextError",
@@ -52,5 +54,7 @@ __all__ = [
     "classify_changed_path",
     "derive_review_decision",
     "detected_components",
+    "evaluate_architecture_safety_checks",
     "evaluate_scope_checks",
+    "extract_added_lines",
 ]
