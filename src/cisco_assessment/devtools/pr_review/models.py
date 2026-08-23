@@ -87,10 +87,15 @@ class ReviewFinding(FrozenReviewModel):
     requires_human_decision: bool = False
 
     @model_validator(mode="after")
-    def require_evidence_for_blocking_findings(self) -> ReviewFinding:
-        """Forbid unsupported blocking conclusions."""
+    def validate_finding_evidence(self) -> ReviewFinding:
+        """Require evidence for blockers and preserve check/evidence consistency."""
         if self.severity is ReviewFindingSeverity.BLOCKING and not self.evidence:
             raise ValueError("blocking findings require at least one evidence item")
+        if any(
+            item.check_id is not None and item.check_id is not self.check_id
+            for item in self.evidence
+        ):
+            raise ValueError("finding evidence check_id must match finding check_id")
         return self
 
 
@@ -108,12 +113,22 @@ class ReviewCheck(FrozenReviewModel):
     blocking: bool
 
     @model_validator(mode="after")
-    def validate_applicability_status(self) -> ReviewCheck:
-        """Keep NOT_APPLICABLE semantically aligned with applicability."""
+    def validate_check_consistency(self) -> ReviewCheck:
+        """Keep applicability, evidence, and findings internally consistent."""
         if self.applicable and self.status is ReviewCheckStatus.NOT_APPLICABLE:
             raise ValueError("applicable checks cannot have NOT_APPLICABLE status")
         if not self.applicable and self.status is not ReviewCheckStatus.NOT_APPLICABLE:
             raise ValueError("non-applicable checks must have NOT_APPLICABLE status")
+        if any(
+            item.check_id is not None and item.check_id is not self.check_id
+            for item in self.evidence
+        ):
+            raise ValueError("check evidence check_id must match check check_id")
+        if any(finding.check_id is not self.check_id for finding in self.findings):
+            raise ValueError("check findings must use the same check_id as the check")
+        has_evidence = bool(self.evidence) or any(finding.evidence for finding in self.findings)
+        if self.blocking and self.status is ReviewCheckStatus.FAIL and not has_evidence:
+            raise ValueError("blocking failed checks require evidence")
         return self
 
 
