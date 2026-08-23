@@ -16,6 +16,7 @@ from cisco_assessment.models import (
     CommandExecution,
     DeviceInfo,
     HardwareInventory,
+    InterfaceObservation,
     RawCommandOutput,
 )
 from cisco_assessment.parsers import ParseResult
@@ -60,6 +61,7 @@ class AssessmentRunnerResult:
     rendered_report: RenderedReport
     report_path: Path
     hardware_inventory_parse_result: ParseResult[HardwareInventory] | None = None
+    interface_observation_parse_result: ParseResult[InterfaceObservation] | None = None
 
     @property
     def parse_result(self) -> ParseResult[DeviceInfo]:
