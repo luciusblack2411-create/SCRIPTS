@@ -197,10 +197,12 @@ def _evaluate_base_head_freshness(context: PullRequestContext) -> ReviewCheck:
         ),
         evidence=(evidence,),
         recommendation=(
-            "Treat the base advancement as review context. GitHub pull requests use a three-dot "
-            "comparison from the merge base to the topic head, so SHA divergence alone is not a "
-            "review failure; also consider current mergeability and current-head CI evidence."
+            "GitHub pull requests use a three-dot comparison from the merge base to the topic head, "
+            "so SHA divergence is not itself a code failure. However, this reviewer cannot yet "
+            "prove that CI validated the topic against the newly advanced base; require a human "
+            "freshness decision until merge-ref CI provenance is tracked explicitly."
         ),
+        requires_human_decision=True,
     )
     return ReviewCheck(
         check_id=check_id,
