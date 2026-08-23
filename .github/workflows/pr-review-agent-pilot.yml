@@ -10,7 +10,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  shadow-review-pr37:
+  shadow-review-pr50:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,21 +30,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
-          cisco-pr-review run .github/pr-review-pilot/pr37.json --output json > pr37-review.json
+          cisco-pr-review run .github/pr-review-pilot/pr50.json --output json > pr50-review.json
           review_exit=$?
           set -e
-          cat pr37-review.json
+          cat pr50-review.json
           python - <<'PY'
           import json
           from pathlib import Path
 
-          report = json.loads(Path("pr37-review.json").read_text(encoding="utf-8"))
+          report = json.loads(Path("pr50-review.json").read_text(encoding="utf-8"))
           assert report["agent_id"] == "PR_REVIEW_AGENT_V1"
-          assert report["pr_number"] == 37
-          assert report["decision"] == "NEEDS_HUMAN_REVIEW"
-          assert any(
+          assert report["pr_number"] == 50
+          assert report["decision"] == "APPROVE"
+          assert not any(
               finding["requires_human_decision"]
               for finding in report["findings"]
           )
+          assert all(
+              check["status"] == "PASS"
+              for check in report["checks"]
+              if check["check_id"] in {"GIT-005", "CI-001", "CI-002", "CI-003"}
+          )
           PY
-          test "$review_exit" -eq 2
+          test "$review_exit" -eq 0
