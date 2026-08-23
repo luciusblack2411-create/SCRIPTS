@@ -40,6 +40,20 @@ def test_dispatch_is_restricted_to_exact_workflow_and_ref() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("workflow_file", "ref"),
+    (("other.yml", "agent/implementation/example"), ("ci.yml", "main")),
+)
+def test_dispatch_rejects_unapproved_workflow_or_branch(workflow_file: str, ref: str) -> None:
+    transport = FakeCiTransport()
+    backend = GitHubImplementationCiBackend(transport=transport)
+
+    with pytest.raises(ImplementationGitHubCiError, match="only permits"):
+        backend.dispatch_workflow("owner/repo", workflow_file, ref)
+
+    assert transport.posts == []
+
+
 def test_list_runs_uses_exact_dispatch_branch_and_head_filters() -> None:
     transport = FakeCiTransport()
     path = (
