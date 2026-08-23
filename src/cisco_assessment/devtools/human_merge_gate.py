@@ -154,10 +154,15 @@ def execute_human_merge(
             decision=HumanMergeDecision.NEEDS_BASE_REFRESH,
         )
 
-    _validate_live_ready_pr(
-        merge_backend.get_pull_request(report.repository, report.pr_number),
-        report,
-    )
+    live_pr = merge_backend.get_pull_request(report.repository, report.pr_number)
+    _validate_live_ready_state(live_pr)
+    if not _live_refs_match_report(live_pr, report):
+        return _result(
+            report=report,
+            authorization=operation.authorization,
+            pr_url=pr_url,
+            decision=HumanMergeDecision.NEEDS_BASE_REFRESH,
+        )
     if not _refs_match_report(merge_backend, report):
         return _result(
             report=report,
@@ -241,14 +246,24 @@ def _validate_authorization(
         raise HumanMergeError("human authorization head SHA does not match reviewed evidence")
 
 
-def _validate_live_ready_pr(payload: Mapping[str, object], report: ReviewReport) -> None:
+def _validate_live_ready_state(payload: Mapping[str, object]) -> None:
     if _require_str(payload, "state") != "open":
         raise HumanMergeError("pull request must be open before merge")
     if _require_bool(payload, "draft") is not False:
         raise HumanMergeError("pull request must be Ready for Review before merge")
     if _require_bool(payload, "merged") is not False:
         raise HumanMergeError("pull request is already merged")
-    _validate_live_refs(payload, report)
+
+
+def _live_refs_match_report(payload: Mapping[str, object], report: ReviewReport) -> bool:
+    base = _require_mapping(payload.get("base"), "base")
+    head = _require_mapping(payload.get("head"), "head")
+    return (
+        _require_str(base, "ref") == report.base_branch
+        and _require_str(base, "sha") == report.base_sha
+        and _require_str(head, "ref") == report.head_branch
+        and _require_str(head, "sha") == report.head_sha
+    )
 
 
 def _validate_merged_pr(payload: Mapping[str, object], report: ReviewReport) -> None:
@@ -266,15 +281,6 @@ def _validate_merged_pr(payload: Mapping[str, object], report: ReviewReport) -> 
         raise HumanMergeError("merged pull request head branch changed unexpectedly")
     if _require_str(head, "sha") != report.head_sha:
         raise HumanMergeError("merged pull request head SHA changed unexpectedly")
-
-
-def _validate_live_refs(payload: Mapping[str, object], report: ReviewReport) -> None:
-    base = _require_mapping(payload.get("base"), "base")
-    head = _require_mapping(payload.get("head"), "head")
-    if _require_str(base, "ref") != report.base_branch or _require_str(base, "sha") != report.base_sha:
-        raise HumanMergeError("pull request base ref/SHA no longer matches reviewed evidence")
-    if _require_str(head, "ref") != report.head_branch or _require_str(head, "sha") != report.head_sha:
-        raise HumanMergeError("pull request head ref/SHA no longer matches reviewed evidence")
 
 
 def _refs_match_report(backend: HumanMergeBackend, report: ReviewReport) -> bool:
