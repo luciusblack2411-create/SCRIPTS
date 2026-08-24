@@ -13,6 +13,7 @@ from cisco_assessment.assessment import (
     device_info_rule_catalog,
     hardware_inventory_rule_catalog,
     interface_observation_rule_catalog,
+    vlan_observation_rule_catalog,
 )
 from cisco_assessment.catalog import COMMAND_CATALOG_V0_1, CommandCatalog
 from cisco_assessment.collector import CommandExecutor, DeviceCollector, ReadOnlyPolicy
@@ -22,7 +23,12 @@ from cisco_assessment.collector.transport import (
     SSHConnectionOptions,
     SSHTransport,
 )
-from cisco_assessment.models import DeviceInfo, HardwareInventory, InterfaceObservation
+from cisco_assessment.models import (
+    DeviceInfo,
+    HardwareInventory,
+    InterfaceObservation,
+    VlanObservation,
+)
 from cisco_assessment.parsers import ParserRegistry, build_parser_registry
 from cisco_assessment.raw import FilesystemRawRepository
 from cisco_assessment.reporting import AssessmentReportBuilder, JsonReportRenderer
@@ -68,6 +74,7 @@ def build_runner(
     device_rules = device_info_rule_catalog()
     hardware_rules = hardware_inventory_rule_catalog()
     interface_rules = interface_observation_rule_catalog()
+    vlan_rules = vlan_observation_rule_catalog()
     return MultiDomainAssessmentRunner(
         framework_version=__version__,
         collector=collector,
@@ -76,10 +83,16 @@ def build_runner(
         assessment_engine=AssessmentEngine[DeviceInfo](device_rules),
         hardware_inventory_engine=AssessmentEngine[HardwareInventory](hardware_rules),
         interface_observation_engine=AssessmentEngine[InterfaceObservation](interface_rules),
+        vlan_observation_engine=AssessmentEngine[VlanObservation](vlan_rules),
         report_builder=AssessmentReportBuilder(),
         report_renderer=JsonReportRenderer(),
         report_root=Path(output_root),
-        ruleset_version=_ruleset_version(device_rules, hardware_rules, interface_rules),
+        ruleset_version=_ruleset_version(
+            device_rules,
+            hardware_rules,
+            interface_rules,
+            vlan_rules,
+        ),
         default_plan=default_plan,
     )
 
