@@ -153,6 +153,15 @@ def test_local_codex_backend_does_not_forward_control_plane_or_cisco_secrets() -
     }
 
 
+def test_local_codex_backend_preserves_explicit_empty_environment() -> None:
+    runner = RecordingRunner()
+    backend = CodexCliSynthesisBackend(runner=runner, host_environment={})
+
+    backend.synthesize("bounded prompt")
+
+    assert runner.env == {}
+
+
 def test_local_codex_backend_fails_closed_on_nonzero_exit() -> None:
     runner = RecordingRunner(returncode=7)
     backend = CodexCliSynthesisBackend(
