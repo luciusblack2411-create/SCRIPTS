@@ -84,7 +84,10 @@ def _assert_strict_object_schemas(node: object) -> None:
         assert "default" not in node
         properties = node.get("properties")
         if isinstance(properties, dict):
-            assert node.get("required") == list(properties)
+            required = node.get("required")
+            assert isinstance(required, list)
+            assert len(required) == len(properties)
+            assert set(required) == set(properties)
             assert node.get("additionalProperties") is False
         for value in node.values():
             _assert_strict_object_schemas(value)
