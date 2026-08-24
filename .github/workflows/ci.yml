@@ -56,3 +56,6 @@ jobs:
 
       - name: Ready-for-Review control-plane CLI smoke test
         run: cisco-ready-for-review-control --help
+
+      - name: Human merge control-plane CLI smoke test
+        run: cisco-human-merge-control --help
