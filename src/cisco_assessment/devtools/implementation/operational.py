@@ -50,8 +50,11 @@ class ImplementationOperation(FrozenImplementationModel):
             raise ValueError("operation request and workspace objective must match")
         if self.request.authorization != self.workspace.authorization:
             raise ValueError("operation request and workspace authorization must match")
-        if self.request.authorization is not ImplementationAuthorization.WORK_BRANCH:
-            raise ValueError("operational v0.1 requires WORK_BRANCH authorization exactly")
+        if self.request.authorization not in {
+            ImplementationAuthorization.WORK_BRANCH,
+            ImplementationAuthorization.DRAFT_PR,
+        }:
+            raise ValueError("operational v0.1 requires at least WORK_BRANCH authorization")
         if not self.work_branch.startswith("agent/implementation/"):
             raise ValueError("work_branch must use the agent/implementation/ namespace")
         if not self.commit_message.strip():
