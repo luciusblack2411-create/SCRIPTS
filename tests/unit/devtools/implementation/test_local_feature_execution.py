@@ -8,7 +8,9 @@ import pytest
 from cisco_assessment.devtools.implementation import local_feature_execution
 from cisco_assessment.devtools.implementation.codex_cli_backend import CodexCliSynthesisBackend
 from cisco_assessment.devtools.implementation.github_ci import GitHubImplementationCiBackend
-from cisco_assessment.devtools.implementation.github_mutation import GitHubImplementationMutationBackend
+from cisco_assessment.devtools.implementation.github_mutation import (
+    GitHubImplementationMutationBackend,
+)
 from cisco_assessment.devtools.implementation.github_rest import GitHubImplementationReadBackend
 from cisco_assessment.devtools.implementation.local_feature_execution import (
     IMPLEMENTATION_TOKEN_ENV,
