@@ -27,6 +27,11 @@ dev = [
 
 [project.scripts]
 cisco-assessment = "cisco_assessment.cli:app"
+cisco-pr-review = "cisco_assessment.devtools.pr_review.cli:app"
+cisco-implementation = "cisco_assessment.devtools.implementation.cli:app"
+cisco-draft-pr-control = "cisco_assessment.devtools.implementation.draft_pr_control_plane_cli:app"
+cisco-ready-for-review-control = "cisco_assessment.devtools.ready_for_review_control_plane_cli:app"
+cisco-human-merge-control = "cisco_assessment.devtools.human_merge_control_plane_cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cisco_assessment"]

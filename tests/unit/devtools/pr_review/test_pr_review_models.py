@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+import pytest
+from pydantic import ValidationError
+
+from cisco_assessment.devtools.pr_review import (
+    ComponentId,
+    ReviewCheck,
+    ReviewCheckId,
+    ReviewCheckStatus,
+    ReviewEvidence,
+    ReviewEvidenceKind,
+    ReviewFinding,
+    ReviewFindingSeverity,
+    ReviewRequest,
+)
+
+
+def _evidence() -> ReviewEvidence:
+    return ReviewEvidence(
+        evidence_id="ev-001",
+        kind=ReviewEvidenceKind.SOURCE_LINE,
+        description="Parser imports Reporting.",
+        repository_path="src/cisco_assessment/parsers/example.py",
+        line_start=10,
+        line_end=10,
+        check_id=ReviewCheckId.ARCH_003,
+    )
+
+
+def test_review_request_is_frozen_and_forbids_extra_fields() -> None:
+    request = ReviewRequest(
+        repository="owner/repo",
+        pr_number=42,
+        objective="Review parser-only change.",
+        expected_components=(ComponentId.PARSER,),
+    )
+
+    with pytest.raises(ValidationError):
+        request.__setattr__("objective", "mutated")
+
+    with pytest.raises(ValidationError):
+        ReviewRequest.model_validate(
+            {
+                "repository": "owner/repo",
+                "pr_number": 42,
+                "objective": "Review parser-only change.",
+                "expected_components": (ComponentId.PARSER,),
+                "unexpected": True,
+            }
+        )
+
+
+def test_review_evidence_requires_complete_ordered_line_range() -> None:
+    with pytest.raises(ValidationError, match="provided together"):
+        ReviewEvidence(
+            evidence_id="ev-001",
+            kind=ReviewEvidenceKind.SOURCE_LINE,
+            description="Incomplete line range.",
+            line_start=10,
+        )
+
+    with pytest.raises(ValidationError, match="greater than or equal"):
+        ReviewEvidence(
+            evidence_id="ev-002",
+            kind=ReviewEvidenceKind.SOURCE_LINE,
+            description="Reversed line range.",
+            line_start=11,
+            line_end=10,
+        )
+
+
+def test_blocking_finding_requires_evidence() -> None:
+    with pytest.raises(ValidationError, match="blocking findings require"):
+        ReviewFinding(
+            finding_id="ARCH-003:001",
+            check_id=ReviewCheckId.ARCH_003,
+            severity=ReviewFindingSeverity.BLOCKING,
+            title="Parser crosses architecture boundary",
+            observation="Parser imports Reporting.",
+            evidence=(),
+        )
+
+
+def test_finding_evidence_must_match_finding_check_id() -> None:
+    mismatched = ReviewEvidence(
+        evidence_id="ev-mismatch",
+        kind=ReviewEvidenceKind.DIFF,
+        description="Evidence belongs to another check.",
+        check_id=ReviewCheckId.SCOPE_001,
+    )
+
+    with pytest.raises(ValidationError, match="finding evidence check_id"):
+        ReviewFinding(
+            finding_id="ARCH-003:001",
+            check_id=ReviewCheckId.ARCH_003,
+            severity=ReviewFindingSeverity.BLOCKING,
+            title="Parser crosses architecture boundary",
+            observation="Parser imports Reporting.",
+            evidence=(mismatched,),
+        )
+
+
+def test_non_applicable_check_requires_not_applicable_status() -> None:
+    with pytest.raises(ValidationError, match="non-applicable checks"):
+        ReviewCheck(
+            check_id=ReviewCheckId.RULE_001,
+            name="Stable RuleId",
+            category="RULE",
+            status=ReviewCheckStatus.PASS,
+            applicable=False,
+            summary="Rules are outside this PR scope.",
+            evidence=(),
+            findings=(),
+            blocking=True,
+        )
+
+
+def test_blocking_failed_check_requires_evidence() -> None:
+    with pytest.raises(ValidationError, match="blocking failed checks require evidence"):
+        ReviewCheck(
+            check_id=ReviewCheckId.SCOPE_001,
+            name="Authorized scope",
+            category="SCOPE",
+            status=ReviewCheckStatus.FAIL,
+            applicable=True,
+            summary="Unexpected component changed.",
+            evidence=(),
+            findings=(),
+            blocking=True,
+        )
+
+
+def test_check_findings_must_match_check_id() -> None:
+    finding = ReviewFinding(
+        finding_id="ARCH-003:001",
+        check_id=ReviewCheckId.ARCH_003,
+        severity=ReviewFindingSeverity.WARNING,
+        title="Parser boundary observation",
+        observation="Synthetic observation.",
+        evidence=(_evidence(),),
+    )
+
+    with pytest.raises(ValidationError, match="check findings must use"):
+        ReviewCheck(
+            check_id=ReviewCheckId.SCOPE_001,
+            name="Authorized scope",
+            category="SCOPE",
+            status=ReviewCheckStatus.WARNING,
+            applicable=True,
+            summary="Synthetic warning.",
+            evidence=(),
+            findings=(finding,),
+            blocking=False,
+        )
+
+
+def test_blocking_finding_with_evidence_is_valid() -> None:
+    finding = ReviewFinding(
+        finding_id="ARCH-003:001",
+        check_id=ReviewCheckId.ARCH_003,
+        severity=ReviewFindingSeverity.BLOCKING,
+        title="Parser crosses architecture boundary",
+        observation="Parser imports Reporting.",
+        evidence=(_evidence(),),
+        recommendation="Remove the Reporting dependency from the parser.",
+    )
+
+    assert finding.evidence[0].repository_path == "src/cisco_assessment/parsers/example.py"
