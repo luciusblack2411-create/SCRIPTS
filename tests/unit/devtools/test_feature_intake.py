@@ -3,7 +3,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from cisco_assessment.devtools.implementation.enums import ImplementationAuthorization
+from cisco_assessment.devtools.implementation.enums import (
+    ImplementationAuthorization,
+    ImplementationEvidenceKind,
+)
 from cisco_assessment.devtools.implementation.feature_intake import (
     FeatureContractApproval,
     FeatureContractProposalDraft,
@@ -13,10 +16,7 @@ from cisco_assessment.devtools.implementation.feature_intake import (
     build_feature_contract_proposal,
     feature_contract_proposal_sha256,
 )
-from cisco_assessment.devtools.implementation.models import (
-    ImplementationEvidence,
-    ImplementationEvidenceKind,
-)
+from cisco_assessment.devtools.implementation.models import ImplementationEvidence
 from cisco_assessment.devtools.pr_review import ComponentId
 
 
