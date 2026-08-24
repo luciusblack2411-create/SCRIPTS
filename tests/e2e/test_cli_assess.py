@@ -14,6 +14,7 @@ from cisco_assessment.runner import (
     HARDWARE_INVENTORY_PLAN_V0_1,
     INTERFACE_STATUS_PLAN_V0_1,
     SHOW_VERSION_PLAN_V0_2,
+    VLAN_OBSERVATION_PLAN_V0_1,
     build_runner,
 )
 
@@ -145,6 +146,37 @@ def test_assess_cli_selects_interface_status_productive_plan(monkeypatch, tmp_pa
     assert fake_runner.plan is INTERFACE_STATUS_PLAN_V0_1
 
 
+def test_assess_cli_selects_vlan_observation_productive_plan(monkeypatch, tmp_path: Path) -> None:
+    fake_runner = FakeRunner()
+
+    def fake_builder(**kwargs: object) -> FakeRunner:
+        del kwargs
+        return fake_runner
+
+    monkeypatch.setattr(cli, "build_default_runner", fake_builder)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.app,
+        [
+            "assess",
+            "--host",
+            "192.0.2.10",
+            "--username",
+            "assessment",
+            "--platform",
+            "ios_xe",
+            "--plan",
+            "vlan-observation",
+            "--use-agent",
+            "--output-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_runner.plan is VLAN_OBSERVATION_PLAN_V0_1
+
+
 def test_assess_cli_hardware_inventory_plan_runs_both_productive_commands(
     monkeypatch,
     tmp_path: Path,
@@ -209,7 +241,7 @@ def test_assess_cli_rejects_unlisted_plan_before_building_runner(monkeypatch) ->
             "--username",
             "assessment",
             "--plan",
-            "show interfaces status",
+            "show vlan brief",
             "--use-agent",
         ],
     )
@@ -220,6 +252,7 @@ def test_assess_cli_rejects_unlisted_plan_before_building_runner(monkeypatch) ->
     assert "show-version" in output
     assert "hardware-inventory" in output
     assert "interface-status" in output
+    assert "vlan-observation" in output
 
 
 def test_assess_cli_help_exposes_supported_plans_and_no_free_command_option() -> None:
@@ -235,4 +268,5 @@ def test_assess_cli_help_exposes_supported_plans_and_no_free_command_option() ->
     assert "show-version" in help_output
     assert "hardware-inventory" in help_output
     assert "interface-status" in help_output
+    assert "vlan-observation" in help_output
     assert "--command" not in help_output

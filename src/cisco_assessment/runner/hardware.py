@@ -15,6 +15,7 @@ from cisco_assessment.models import (
     DeviceInfo,
     HardwareInventory,
     InterfaceObservation,
+    VlanObservation,
 )
 from cisco_assessment.parsers import ParseResult, ParserRegistry
 from cisco_assessment.reporting import AssessmentReportBuilder, ReportRenderer
@@ -43,6 +44,7 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
         assessment_engine: AssessmentEngine[DeviceInfo],
         hardware_inventory_engine: AssessmentEngine[HardwareInventory] | None,
         interface_observation_engine: AssessmentEngine[InterfaceObservation] | None,
+        vlan_observation_engine: AssessmentEngine[VlanObservation] | None,
         report_builder: AssessmentReportBuilder,
         report_renderer: ReportRenderer,
         report_root: Path,
@@ -63,6 +65,7 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
         )
         self._hardware_inventory_engine = hardware_inventory_engine
         self._interface_observation_engine = interface_observation_engine
+        self._vlan_observation_engine = vlan_observation_engine
 
     def run(
         self,
@@ -74,8 +77,9 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
         base_result = super().run(device=device, credentials=credentials, plan=plan)
         hardware_parse = self._hardware_inventory_parse(base_result)
         interface_parse = self._interface_observation_parse(base_result)
+        vlan_parse = self._vlan_observation_parse(base_result)
 
-        if hardware_parse is None and interface_parse is None:
+        if hardware_parse is None and interface_parse is None and vlan_parse is None:
             return base_result
 
         context = self._build_context(
@@ -100,6 +104,13 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
                 outcome.status == AssessmentStatus.ERROR for outcome in interface_result.outcomes
             )
 
+        if vlan_parse is not None and self._vlan_observation_engine is not None:
+            vlan_result = self._vlan_observation_engine.evaluate(vlan_parse.data, context)
+            assessment_result = self._merge_results(assessment_result, vlan_result)
+            additional_error = additional_error or any(
+                outcome.status == AssessmentStatus.ERROR for outcome in vlan_result.outcomes
+            )
+
         if additional_error:
             base_result.run.status = AssessmentRunStatus.PARTIAL
 
@@ -109,6 +120,7 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
             device_info=base_result.device_info_parse_result.data,
             hardware_inventory=hardware_parse.data if hardware_parse is not None else None,
             interface_observation=interface_parse.data if interface_parse is not None else None,
+            vlan_observation=vlan_parse.data if vlan_parse is not None else None,
         )
         rendered_report = self._report_renderer.render(report)
         report_path = self._persist_report(
@@ -129,6 +141,7 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
             report_path=report_path,
             hardware_inventory_parse_result=hardware_parse,
             interface_observation_parse_result=interface_parse,
+            vlan_observation_parse_result=vlan_parse,
         )
 
     @staticmethod
@@ -153,6 +166,18 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
             parse_result = command_result.parse_result
             if parse_result is not None and isinstance(parse_result.data, InterfaceObservation):
                 return cast(ParseResult[InterfaceObservation], parse_result)
+        return None
+
+    @staticmethod
+    def _vlan_observation_parse(
+        result: AssessmentRunnerResult,
+    ) -> ParseResult[VlanObservation] | None:
+        for command_result in result.command_results:
+            if command_result.command_id != CommandId.VLANS_BRIEF:
+                continue
+            parse_result = command_result.parse_result
+            if parse_result is not None and isinstance(parse_result.data, VlanObservation):
+                return cast(ParseResult[VlanObservation], parse_result)
         return None
 
     @staticmethod
@@ -197,6 +222,7 @@ class HardwareInventoryAssessmentRunner(MultiDomainAssessmentRunner):
             assessment_engine=assessment_engine,
             hardware_inventory_engine=hardware_inventory_engine,
             interface_observation_engine=None,
+            vlan_observation_engine=None,
             report_builder=report_builder,
             report_renderer=report_renderer,
             report_root=report_root,

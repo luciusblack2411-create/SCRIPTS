@@ -8,6 +8,7 @@ from cisco_assessment.runner import (
     HARDWARE_INVENTORY_PLAN_V0_1,
     INTERFACE_STATUS_PLAN_V0_1,
     SHOW_VERSION_PLAN_V0_2,
+    VLAN_OBSERVATION_PLAN_V0_1,
     AssessmentPlan,
     AssessmentPlanItem,
     ProductiveAssessmentPlanId,
@@ -43,7 +44,12 @@ def test_productive_plans_preserve_exact_command_sets_and_order() -> None:
         CommandId.SYSTEM_VERSION,
         CommandId.INTERFACES_STATUS,
     )
+    assert VLAN_OBSERVATION_PLAN_V0_1.command_ids == (
+        CommandId.SYSTEM_VERSION,
+        CommandId.VLANS_BRIEF,
+    )
     assert CommandId.SYSTEM_INVENTORY not in INTERFACE_STATUS_PLAN_V0_1.command_ids
+    assert CommandId.INTERFACES_STATUS not in VLAN_OBSERVATION_PLAN_V0_1.command_ids
 
 
 def test_productive_plan_registry_resolves_only_whitelisted_plans() -> None:
@@ -59,8 +65,12 @@ def test_productive_plan_registry_resolves_only_whitelisted_plans() -> None:
         resolve_productive_assessment_plan(ProductiveAssessmentPlanId.INTERFACE_STATUS)
         is INTERFACE_STATUS_PLAN_V0_1
     )
+    assert (
+        resolve_productive_assessment_plan(ProductiveAssessmentPlanId.VLAN_OBSERVATION)
+        is VLAN_OBSERVATION_PLAN_V0_1
+    )
     with pytest.raises(ValueError):
-        ProductiveAssessmentPlanId("show interfaces status")
+        ProductiveAssessmentPlanId("show vlan brief")
 
 
 def test_assessment_plan_rejects_duplicate_commands() -> None:

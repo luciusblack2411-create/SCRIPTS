@@ -39,7 +39,8 @@ _PLAN_OPTION = typer.Option(
     help=(
         "Productive assessment plan. show-version (default): show version only; "
         "hardware-inventory: show version + show inventory; "
-        "interface-status: show version + show interfaces status."
+        "interface-status: show version + show interfaces status; "
+        "vlan-observation: show version + show vlan brief."
     ),
 )
 
