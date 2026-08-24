@@ -151,7 +151,7 @@ class CodexCliSynthesisBackend:
             output_path = root / "codex-synthesis-output.json"
             schema_path.write_text(
                 json.dumps(
-                    CodexSynthesisOutput.model_json_schema(),
+                    _codex_structured_output_schema(),
                     ensure_ascii=False,
                     separators=(",", ":"),
                     sort_keys=True,
@@ -202,6 +202,29 @@ class CodexCliSynthesisBackend:
             if not output.strip():
                 raise CodexCliBackendError("Codex CLI produced an empty final message")
             return output
+
+
+def _codex_structured_output_schema() -> dict[str, object]:
+    """Adapt the project-owned Pydantic schema to Codex strict structured-output rules."""
+    schema = CodexSynthesisOutput.model_json_schema()
+    _normalize_structured_output_schema(schema)
+    return schema
+
+
+def _normalize_structured_output_schema(node: object) -> None:
+    """Require every object property explicitly and remove Pydantic-only defaults recursively."""
+    if isinstance(node, dict):
+        node.pop("default", None)
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            node["required"] = list(properties)
+            node["additionalProperties"] = False
+        for value in tuple(node.values()):
+            _normalize_structured_output_schema(value)
+        return
+    if isinstance(node, list):
+        for value in node:
+            _normalize_structured_output_schema(value)
 
 
 def _sanitized_environment(source: Mapping[str, str]) -> dict[str, str]:
