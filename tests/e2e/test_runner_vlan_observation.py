@@ -20,7 +20,7 @@ from cisco_assessment.runner import VLAN_OBSERVATION_PLAN_V0_1, build_runner
 _FIXTURES = Path(__file__).parents[1] / "fixtures" / "ios"
 _VERSION = _FIXTURES / "show_version" / "c9300_iosxe.txt"
 _VLANS = _FIXTURES / "show_vlan_brief" / "c9300_iosxe_real_sanitized.raw"
-_PROMPT = b"SW-CORE-01#"
+_PROMPT = b"LAB_SWITCH01#"
 
 
 class VlanObservationTransport:
