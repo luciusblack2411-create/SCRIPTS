@@ -36,8 +36,10 @@ from cisco_assessment.devtools.pr_review import ComponentId
 PARSER_PATH = "src/cisco_assessment/parsers/example.py"
 TEST_PATH = "tests/unit/parsers/test_example.py"
 NEW_TEST_PATH = "tests/unit/parsers/test_example_regression.py"
+COLLECTOR_PATH = "src/cisco_assessment/collector/secret.py"
 PARSER_CONTENT = "def parse():\n    return 1\n"
 TEST_CONTENT = "def test_parse():\n    assert True\n"
+COLLECTOR_CONTENT = "SECRET = 'transport-only'\n"
 
 
 def _request(*, approved: bool = True) -> ImplementationRequest:
@@ -154,10 +156,7 @@ def test_prompt_rejects_unapproved_request_and_stale_inputs() -> None:
     context = _context()
     inspection = _inspection()
     unapproved = _request(approved=False)
-    unapproved_plan = build_implementation_plan(
-        _request(),
-        context,
-    )
+    unapproved_plan = build_implementation_plan(_request(), context)
 
     with pytest.raises(ImplementationSynthesisError, match="not ready"):
         build_codex_synthesis_prompt(unapproved, context, unapproved_plan, inspection)
@@ -171,6 +170,58 @@ def test_prompt_rejects_unapproved_request_and_stale_inputs() -> None:
     stale_inspection = inspection.model_copy(update={"base_sha": "stale-base"})
     with pytest.raises(ImplementationSynthesisError, match="source inspection"):
         build_codex_synthesis_prompt(request, context, plan, stale_inspection)
+
+
+def test_prompt_rejects_forged_source_hash_before_external_handoff() -> None:
+    request = _request()
+    context = _context()
+    plan = build_implementation_plan(request, context)
+    inspection = _inspection()
+    forged = inspection.files[0].model_copy(update={"sha256": "0" * 64})
+    forged_inspection = inspection.model_copy(
+        update={"files": (forged, inspection.files[1])}
+    )
+
+    with pytest.raises(ImplementationSynthesisError, match="SHA-256"):
+        build_codex_synthesis_prompt(request, context, plan, forged_inspection)
+
+
+def test_prompt_rejects_prohibited_source_before_external_handoff() -> None:
+    request = _request()
+    collector_bytes = COLLECTOR_CONTENT.encode("utf-8")
+    context = ImplementationContext(
+        repository="owner/repo",
+        base_branch="main",
+        base_sha="base-123",
+        files=(
+            ImplementationContextFile(
+                path=COLLECTOR_PATH,
+                component=ComponentId.COLLECTOR,
+                blob_sha="collector-blob",
+                size=len(collector_bytes),
+            ),
+        ),
+        observed_components=(ComponentId.COLLECTOR,),
+    )
+    inspection = ImplementationSourceInspection(
+        repository="owner/repo",
+        base_sha="base-123",
+        files=(
+            ImplementationSourceFile(
+                path=COLLECTOR_PATH,
+                component=ComponentId.COLLECTOR,
+                blob_sha="collector-blob",
+                byte_size=len(collector_bytes),
+                sha256=hashlib.sha256(collector_bytes).hexdigest(),
+                content=COLLECTOR_CONTENT,
+            ),
+        ),
+        total_bytes=len(collector_bytes),
+    )
+    plan = build_implementation_plan(request, context)
+
+    with pytest.raises(ImplementationSynthesisError, match="outside approved synthesis scope"):
+        build_codex_synthesis_prompt(request, context, plan, inspection)
 
 
 def test_external_output_is_strict_and_cannot_claim_authority() -> None:
