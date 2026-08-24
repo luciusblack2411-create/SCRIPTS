@@ -163,7 +163,9 @@ def test_vlan_observation_vertical_slice_assesses_and_reports_with_raw_trace(
     assert result.report.hardware_inventory is None
     assert result.report.interface_observation is None
     assert result.report.vlan_observation is not None
-    assert result.report.vlan_observation.vlans == vlan_parse.data.vlans
+    assert tuple(
+        record.model_dump(mode="json") for record in result.report.vlan_observation.vlans
+    ) == tuple(record.model_dump(mode="json") for record in vlan_parse.data.vlans)
 
     payload = json.loads(result.rendered_report.content)
     assert payload["hardware_inventory"] is None
