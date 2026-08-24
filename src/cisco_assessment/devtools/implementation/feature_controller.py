@@ -19,7 +19,11 @@ from .draft_pr_control_plane import (
     ImplementationDraftPrControlPlaneResult,
 )
 from .enums import ImplementationAuthorization
-from .feature_intake import FeatureContractApproval, FeatureContractProposal
+from .feature_intake import (
+    FeatureContractApproval,
+    FeatureContractProposal,
+    feature_contract_proposal_sha256,
+)
 from .models import FrozenImplementationModel
 from .mutation import ImplementationMutationBackend
 from .operational import ImplementationOperation, ImplementationOperationalResult, execute_implementation_operation
@@ -92,6 +96,26 @@ class FeatureExecutionDependencies:
     journal_store: JsonFeatureRunJournalStore
 
 
+class FeatureDraftPrAuthorization(FrozenImplementationModel):
+    """Separate explicit human authority for the later Draft PR control plane."""
+
+    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    controller_id: Literal["FEATURE_EXECUTION_CONTROLLER_V1"] = CONTROLLER_ID
+    decision: Literal["DRAFT_PR_APPROVED"]
+    repository: str = Field(min_length=1)
+    base_sha: str = Field(min_length=1)
+    proposal_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    authorization: ImplementationAuthorization
+    authorized_by: str = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_authority(self) -> FeatureDraftPrAuthorization:
+        if self.authorization is not ImplementationAuthorization.DRAFT_PR:
+            raise ValueError("Draft PR authorization must be DRAFT_PR exactly")
+        return self
+
+
 class FeatureExecutionOperation(FrozenImplementationModel):
     """Explicit authority and deterministic execution inputs for one feature run."""
 
@@ -99,6 +123,7 @@ class FeatureExecutionOperation(FrozenImplementationModel):
     controller_id: Literal["FEATURE_EXECUTION_CONTROLLER_V1"] = CONTROLLER_ID
     proposal: FeatureContractProposal
     approval: FeatureContractApproval
+    draft_pr_authorization: FeatureDraftPrAuthorization
     run_id: str = Field(min_length=1)
     selected_source_paths: tuple[str, ...] = Field(min_length=1)
     work_branch: str = Field(min_length=1)
@@ -114,10 +139,18 @@ class FeatureExecutionOperation(FrozenImplementationModel):
 
     @model_validator(mode="after")
     def validate_operation_contract(self) -> FeatureExecutionOperation:
-        if self.approval.authorization is not ImplementationAuthorization.DRAFT_PR:
-            raise ValueError("feature execution through Ready requires DRAFT_PR approval")
+        if self.approval.authorization is not ImplementationAuthorization.WORK_BRANCH:
+            raise ValueError("implementation execution requires WORK_BRANCH contract approval exactly")
         if self.proposal.maximum_authorization is not ImplementationAuthorization.DRAFT_PR:
             raise ValueError("feature proposal must permit DRAFT_PR as its maximum authorization")
+        proposal_sha = feature_contract_proposal_sha256(self.proposal)
+        draft_authority = self.draft_pr_authorization
+        if (
+            draft_authority.repository != self.proposal.request.repository
+            or draft_authority.base_sha != self.proposal.base_sha
+            or draft_authority.proposal_sha256 != proposal_sha
+        ):
+            raise ValueError("Draft PR authorization must bind to the exact proposal and base")
         if not self.work_branch.startswith("agent/implementation/"):
             raise ValueError("work_branch must use the agent/implementation/ namespace")
         if not self.commit_message.strip() or not self.draft_title.strip():
@@ -186,8 +219,8 @@ def execute_feature_delivery_controller(
 
     run, request = record_contract_approval(run, proposal, approval)
     journal = _append_and_persist(dependencies.journal_store, journal, run)
-    if request.authorization is not ImplementationAuthorization.DRAFT_PR:
-        raise FeatureExecutionControllerError("approved ImplementationRequest lost DRAFT_PR authority")
+    if request.authorization is not ImplementationAuthorization.WORK_BRANCH:
+        raise FeatureExecutionControllerError("approved ImplementationRequest lost WORK_BRANCH authority")
 
     resume = evaluate_feature_run_resume(journal, dependencies.source_backend)
     if resume.decision is FeatureRunResumeDecision.NEEDS_BASE_REFRESH:
@@ -254,7 +287,7 @@ def execute_feature_delivery_controller(
         commit_sha=operational_result.mutation.commit_sha,
         title=operation.draft_title,
         body=operation.draft_body,
-        authorization=approval.authorization,
+        authorization=operation.draft_pr_authorization.authorization,
     )
     draft_control = dependencies.draft_pr_executor(
         ImplementationDraftPrControlPlaneOperation(
