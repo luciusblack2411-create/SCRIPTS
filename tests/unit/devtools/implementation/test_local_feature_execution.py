@@ -43,12 +43,6 @@ def _environment() -> dict[str, str]:
     }
 
 
-def _validated_probe(executable: str, environment: object) -> str:
-    assert executable == "codex"
-    assert environment is not None
-    return VALIDATED_CODEX_CLI_VERSION
-
-
 def test_runtime_requires_explicit_distinct_credentials() -> None:
     with pytest.raises(LocalFeatureExecutionError, match=IMPLEMENTATION_TOKEN_ENV):
         resolve_local_feature_execution_tokens(
@@ -65,11 +59,19 @@ def test_runtime_requires_explicit_distinct_credentials() -> None:
         resolve_local_feature_execution_tokens(environment)
 
 
-def test_runtime_builds_real_dependencies_with_bounded_preflight(tmp_path: Path) -> None:
+def test_runtime_builds_real_dependencies_with_bounded_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_feature_execution,
+        "_probe_codex_cli_version",
+        lambda executable, environment: VALIDATED_CODEX_CLI_VERSION,
+    )
+
     preflight, dependencies = build_local_feature_execution_dependencies(
         journal_root=tmp_path,
         environ=_environment(),
-        codex_version_probe=_validated_probe,
     )
 
     assert preflight.runtime_id == LOCAL_FEATURE_EXECUTION_RUNTIME_ID
@@ -92,12 +94,20 @@ def test_runtime_builds_real_dependencies_with_bounded_preflight(tmp_path: Path)
     assert dependencies.ci_backend._transport._token == "implementation-secret"
 
 
-def test_runtime_fails_closed_on_unvalidated_codex_version(tmp_path: Path) -> None:
+def test_runtime_fails_closed_on_unvalidated_codex_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_feature_execution,
+        "_probe_codex_cli_version",
+        lambda executable, environment: "0.150.0",
+    )
+
     with pytest.raises(LocalFeatureExecutionError, match="not validated"):
         build_local_feature_execution_dependencies(
             journal_root=tmp_path,
             environ=_environment(),
-            codex_version_probe=lambda executable, environment: "0.150.0",
         )
 
 
