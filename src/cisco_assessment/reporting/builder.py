@@ -15,6 +15,8 @@ from cisco_assessment.models import (
     HardwareInventoryRecord,
     InterfaceObservation,
     InterfaceStatusRecord,
+    VlanObservation,
+    VlanRecord,
 )
 from cisco_assessment.models.base import utc_now
 
@@ -35,6 +37,8 @@ from .models import (
     RuleReferenceReport,
     SourceTraceReport,
     TargetSnapshotReport,
+    VlanObservationReport,
+    VlanRecordReport,
 )
 
 
@@ -49,6 +53,7 @@ class AssessmentReportBuilder:
         device_info: DeviceInfo,
         hardware_inventory: HardwareInventory | None = None,
         interface_observation: InterfaceObservation | None = None,
+        vlan_observation: VlanObservation | None = None,
         generated_at: datetime | None = None,
         report_id: UUID | None = None,
     ) -> AssessmentReport:
@@ -58,6 +63,7 @@ class AssessmentReportBuilder:
             device_info=device_info,
             hardware_inventory=hardware_inventory,
             interface_observation=interface_observation,
+            vlan_observation=vlan_observation,
         )
 
         status_counts = {status: 0 for status in AssessmentStatus}
@@ -127,6 +133,16 @@ class AssessmentReportBuilder:
                     ),
                 )
             ),
+            vlan_observation=(
+                None
+                if vlan_observation is None
+                else VlanObservationReport(
+                    schema_version=vlan_observation.schema_version,
+                    vendor=vlan_observation.vendor,
+                    platform=vlan_observation.platform,
+                    vlans=tuple(self._map_vlan_record(item) for item in vlan_observation.vlans),
+                )
+            ),
             summary=AssessmentSummary(
                 rules_evaluated=len(result.outcomes),
                 findings_total=len(result.findings),
@@ -148,6 +164,7 @@ class AssessmentReportBuilder:
         device_info: DeviceInfo,
         hardware_inventory: HardwareInventory | None,
         interface_observation: InterfaceObservation | None,
+        vlan_observation: VlanObservation | None,
     ) -> None:
         if result.assessment_run_id != run.id:
             raise ReportBuildError("AssessmentResult assessment_run_id does not match AssessmentRun")
@@ -161,6 +178,8 @@ class AssessmentReportBuilder:
             raise ReportBuildError("HardwareInventory platform does not match DeviceInfo platform")
         if interface_observation is not None and interface_observation.platform != device_info.platform:
             raise ReportBuildError("InterfaceObservation platform does not match DeviceInfo platform")
+        if vlan_observation is not None and vlan_observation.platform != device_info.platform:
+            raise ReportBuildError("VlanObservation platform does not match DeviceInfo platform")
 
         for evidence in AssessmentReportBuilder._all_evidence(result):
             for source in evidence.sources:
@@ -204,6 +223,16 @@ class AssessmentReportBuilder:
             duplex=record.duplex,
             speed=record.speed,
             media_type=record.media_type,
+        )
+
+    @staticmethod
+    def _map_vlan_record(record: VlanRecord) -> VlanRecordReport:
+        return VlanRecordReport(
+            ordinal=record.ordinal,
+            vlan_id=record.vlan_id,
+            name=record.name,
+            status=record.status,
+            ports=record.ports,
         )
 
     @staticmethod
