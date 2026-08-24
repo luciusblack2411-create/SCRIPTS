@@ -25,10 +25,14 @@ _PROMPT = b"SW-CORE-01#"
 
 class VlanObservationTransport:
     def __init__(self) -> None:
+        vlan_raw = _VLANS.read_bytes()
+        pager_marker = b"--More--"
+        pager_end = vlan_raw.index(pager_marker) + len(pager_marker)
         self._chunks = [
             _PROMPT,
             b"show version\r\n" + _VERSION.read_bytes() + b"\r\n" + _PROMPT,
-            _VLANS.read_bytes(),
+            vlan_raw[:pager_end],
+            vlan_raw[pager_end:],
         ]
         self.sent: list[bytes] = []
         self.closed = False
