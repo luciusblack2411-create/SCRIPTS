@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
@@ -74,9 +74,6 @@ class LocalFeatureExecutionPreflight(FrozenImplementationModel):
     cisco_execution_allowed: Literal[False] = False
 
 
-CodexVersionProbe = Callable[[str, Mapping[str, str]], str]
-
-
 def resolve_local_feature_execution_tokens(
     environ: Mapping[str, str] | None = None,
 ) -> tuple[str, str, str]:
@@ -97,13 +94,11 @@ def build_local_feature_execution_dependencies(
     journal_root: Path,
     environ: Mapping[str, str] | None = None,
     codex_executable: str = "codex",
-    codex_version_probe: CodexVersionProbe | None = None,
 ) -> tuple[LocalFeatureExecutionPreflight, FeatureExecutionDependencies]:
     """Instantiate real local/GitHub dependencies without granting merge or Cisco authority."""
     source = os.environ if environ is None else environ
     implementation_token, draft_pr_token, review_token = resolve_local_feature_execution_tokens(source)
-    probe = codex_version_probe or _probe_codex_cli_version
-    codex_version = probe(codex_executable, source)
+    codex_version = _probe_codex_cli_version(codex_executable, source)
     if codex_version != VALIDATED_CODEX_CLI_VERSION:
         raise LocalFeatureExecutionError(
             "Codex CLI version is not validated for LOCAL_FEATURE_EXECUTION_RUNTIME_V1: "
@@ -167,14 +162,12 @@ def execute_local_feature_delivery(
     journal_root: Path,
     environ: Mapping[str, str] | None = None,
     codex_executable: str = "codex",
-    codex_version_probe: CodexVersionProbe | None = None,
 ) -> tuple[LocalFeatureExecutionPreflight, FeatureExecutionResult]:
     """Run the real controller through Ready and stop before the Human Merge control plane."""
     preflight, dependencies = build_local_feature_execution_dependencies(
         journal_root=journal_root,
         environ=environ,
         codex_executable=codex_executable,
-        codex_version_probe=codex_version_probe,
     )
     result = execute_feature_delivery_controller(operation, dependencies)
     return preflight, result
