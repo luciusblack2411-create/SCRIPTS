@@ -9,7 +9,11 @@ from typing import Literal, Protocol
 from pydantic import Field, model_validator
 
 from ..pr_review.models import ReviewRequest
-from ..ready_for_review import ReadyForReviewAuthorization, ReadyForReviewOperation, ReadyForReviewResult
+from ..ready_for_review import (
+    ReadyForReviewAuthorization,
+    ReadyForReviewOperation,
+    ReadyForReviewResult,
+)
 from ..ready_for_review_control_plane import ReadyForReviewControlPlaneResult
 from .ci_validation import ImplementationCiBackend
 from .context import load_implementation_context
@@ -26,7 +30,11 @@ from .feature_intake import (
 )
 from .models import FrozenImplementationModel
 from .mutation import ImplementationMutationBackend
-from .operational import ImplementationOperation, ImplementationOperationalResult, execute_implementation_operation
+from .operational import (
+    ImplementationOperation,
+    ImplementationOperationalResult,
+    execute_implementation_operation,
+)
 from .orchestrator import (
     FeatureOrchestrationRun,
     FeatureOrchestrationState,
