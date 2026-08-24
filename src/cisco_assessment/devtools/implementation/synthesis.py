@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Sequence
 from typing import Literal, Protocol
@@ -18,6 +19,7 @@ from .source_inspection import ImplementationSourceFile, ImplementationSourceIns
 from .workspace import (
     ImplementationFileChangeDraft,
     ImplementationWorkspace,
+    ImplementationWorkspaceError,
     build_implementation_workspace,
 )
 
@@ -162,7 +164,7 @@ def parse_codex_synthesis_output(raw_output: str) -> CodexSynthesisOutput:
     """Strictly parse external synthesis JSON; unknown or authority fields fail closed."""
     try:
         payload = json.loads(raw_output)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, TypeError) as exc:
         raise ImplementationSynthesisError("Codex synthesis output is not valid JSON") from exc
     try:
         return CodexSynthesisOutput.model_validate(payload)
@@ -199,9 +201,7 @@ def build_codex_synthesis_workspace(
     )
     try:
         return build_implementation_workspace(request, context, plan, inspection, drafts)
-    except Exception as exc:
-        if isinstance(exc, ImplementationSynthesisError):
-            raise
+    except ImplementationWorkspaceError as exc:
         raise ImplementationSynthesisError(
             "synthesis output failed project-owned workspace validation"
         ) from exc
@@ -240,6 +240,8 @@ def _validate_bound_inputs(
     if inspection.repository != request.repository or inspection.base_sha != context.base_sha:
         raise ImplementationSynthesisError("source inspection does not match exact context base")
 
+    allowed = set(request.authorized_components)
+    prohibited = set(request.prohibited_components)
     context_by_path = {item.path: item for item in context.files}
     for source in inspection.files:
         context_file = context_by_path.get(source.path)
@@ -247,9 +249,31 @@ def _validate_bound_inputs(
             raise ImplementationSynthesisError(
                 f"source inspection path {source.path!r} is absent from context evidence"
             )
+        if source.component not in allowed or source.component in prohibited:
+            raise ImplementationSynthesisError(
+                f"source inspection path {source.path!r} is outside approved synthesis scope"
+            )
         if source.blob_sha != context_file.blob_sha or source.component is not context_file.component:
             raise ImplementationSynthesisError(
                 f"source inspection path {source.path!r} does not match context evidence"
+            )
+        try:
+            source_bytes = source.content.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ImplementationSynthesisError(
+                f"source inspection path {source.path!r} is not strict UTF-8"
+            ) from exc
+        if len(source_bytes) != source.byte_size:
+            raise ImplementationSynthesisError(
+                f"source inspection path {source.path!r} byte size is inconsistent"
+            )
+        if hashlib.sha256(source_bytes).hexdigest() != source.sha256:
+            raise ImplementationSynthesisError(
+                f"source inspection path {source.path!r} SHA-256 is inconsistent"
+            )
+        if context_file.size is not None and source.byte_size != context_file.size:
+            raise ImplementationSynthesisError(
+                f"source inspection path {source.path!r} size does not match context evidence"
             )
 
 
