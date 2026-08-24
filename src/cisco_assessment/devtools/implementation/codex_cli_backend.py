@@ -140,7 +140,9 @@ class CodexCliSynthesisBackend:
         if not prompt.strip():
             raise CodexCliBackendError("Codex synthesis prompt must not be blank")
 
-        source_environment = self._host_environment or os.environ
+        source_environment = (
+            self._host_environment if self._host_environment is not None else os.environ
+        )
         environment = _sanitized_environment(source_environment)
 
         with tempfile.TemporaryDirectory(prefix="cisco-assessment-codex-") as directory:
