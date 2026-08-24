@@ -98,6 +98,12 @@ def test_local_codex_backend_uses_ephemeral_schema_constrained_read_only_exec() 
     assert runner.argv[runner.argv.index("--sandbox") + 1] == "read-only"
     assert runner.argv[runner.argv.index("--model") + 1] == "gpt-5.6-sol"
     assert runner.argv[runner.argv.index("--color") + 1] == "never"
+    disable_values = tuple(
+        runner.argv[index + 1]
+        for index, value in enumerate(runner.argv[:-1])
+        if value == "--disable"
+    )
+    assert disable_values == ("shell_tool", "unified_exec", "code_mode")
     assert runner.argv[-1] == "-"
     assert "--dangerously-bypass-approvals-and-sandbox" not in runner.argv
     assert "--dangerously-bypass-hook-trust" not in runner.argv
