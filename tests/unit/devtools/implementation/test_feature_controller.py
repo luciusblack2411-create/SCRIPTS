@@ -27,6 +27,7 @@ from cisco_assessment.devtools.implementation.enums import (
     ImplementationFileChangeKind,
 )
 from cisco_assessment.devtools.implementation.feature_controller import (
+    FeatureDraftPrAuthorization,
     FeatureExecutionDecision,
     FeatureExecutionDependencies,
     FeatureExecutionOperation,
@@ -43,10 +44,7 @@ from cisco_assessment.devtools.implementation.mutation import (
     ImplementationMutationChangeResult,
     ImplementationMutationResult,
 )
-from cisco_assessment.devtools.implementation.operational import (
-    ImplementationOperation,
-    ImplementationOperationalResult,
-)
+from cisco_assessment.devtools.implementation.operational import ImplementationOperationalResult
 from cisco_assessment.devtools.implementation.orchestrator import (
     FeatureOrchestrationState,
     orchestration_artifact_sha256,
@@ -101,7 +99,10 @@ def _proposal():
     )
 
 
-def _approval(*, authorization: ImplementationAuthorization = ImplementationAuthorization.DRAFT_PR):
+def _approval(
+    *,
+    authorization: ImplementationAuthorization = ImplementationAuthorization.WORK_BRANCH,
+) -> FeatureContractApproval:
     proposal = _proposal()
     return FeatureContractApproval(
         decision="CONTRACT_APPROVED",
@@ -110,14 +111,35 @@ def _approval(*, authorization: ImplementationAuthorization = ImplementationAuth
         proposal_sha256=feature_contract_proposal_sha256(proposal),
         authorization=authorization,
         authorized_by="human-operator",
-        rationale="Approve the exact bounded controller proposal.",
+        rationale="Approve the exact work-branch implementation boundary.",
     )
 
 
-def _operation(*, approval: FeatureContractApproval | None = None) -> FeatureExecutionOperation:
+def _draft_authorization(
+    *,
+    proposal_sha256: str | None = None,
+) -> FeatureDraftPrAuthorization:
+    proposal = _proposal()
+    return FeatureDraftPrAuthorization(
+        decision="DRAFT_PR_APPROVED",
+        repository=REPOSITORY,
+        base_sha=BASE_SHA,
+        proposal_sha256=proposal_sha256 or feature_contract_proposal_sha256(proposal),
+        authorization=ImplementationAuthorization.DRAFT_PR,
+        authorized_by="human-operator",
+        rationale="Permit the dedicated Draft PR gate after successful work-branch CI.",
+    )
+
+
+def _operation(
+    *,
+    approval: FeatureContractApproval | None = None,
+    draft_authorization: FeatureDraftPrAuthorization | None = None,
+) -> FeatureExecutionOperation:
     return FeatureExecutionOperation(
         proposal=_proposal(),
         approval=approval or _approval(),
+        draft_pr_authorization=draft_authorization or _draft_authorization(),
         run_id="controller-run-0001",
         selected_source_paths=(PATH,),
         work_branch=WORK_BRANCH,
@@ -146,7 +168,7 @@ def _workspace() -> ImplementationWorkspace:
         base_branch="main",
         base_sha=BASE_SHA,
         objective=OBJECTIVE,
-        authorization=ImplementationAuthorization.DRAFT_PR,
+        authorization=ImplementationAuthorization.WORK_BRANCH,
         plan_step_ids=("impl-step:0001",),
         inspected_paths=(PATH,),
         contracts_to_preserve=("FEATURE_ORCHESTRATOR_V1",),
@@ -335,11 +357,7 @@ def _patch_middle_stages(monkeypatch: pytest.MonkeyPatch, workspace: Implementat
     monkeypatch.setattr(feature_controller, "load_implementation_context", lambda *args: _context())
     monkeypatch.setattr(feature_controller, "build_implementation_plan", lambda *args: object())
     monkeypatch.setattr(feature_controller, "inspect_implementation_sources", lambda *args: object())
-    monkeypatch.setattr(
-        feature_controller,
-        "run_codex_synthesis_adapter",
-        lambda *args: workspace,
-    )
+    monkeypatch.setattr(feature_controller, "run_codex_synthesis_adapter", lambda *args: workspace)
     monkeypatch.setattr(
         feature_controller,
         "execute_implementation_operation",
@@ -432,24 +450,11 @@ def test_controller_records_review_rejection_as_blocked(
     assert result.cisco_execution_allowed is False
 
 
-def test_full_controller_operation_requires_draft_pr_human_authority() -> None:
-    with pytest.raises(ValidationError, match="DRAFT_PR approval"):
-        _operation(approval=_approval(authorization=ImplementationAuthorization.WORK_BRANCH))
+def test_controller_preserves_exact_work_branch_authorization_boundary() -> None:
+    with pytest.raises(ValidationError, match="WORK_BRANCH contract approval"):
+        _operation(approval=_approval(authorization=ImplementationAuthorization.DRAFT_PR))
 
 
-def test_work_branch_gate_accepts_draft_pr_as_higher_maximum_authority() -> None:
-    proposal = _proposal()
-    approval = _approval()
-    from cisco_assessment.devtools.implementation.feature_intake import approve_feature_contract
-
-    request = approve_feature_contract(proposal, approval)
-    workspace = _workspace()
-
-    operation = ImplementationOperation(
-        request=request,
-        workspace=workspace,
-        work_branch=WORK_BRANCH,
-        commit_message="feat(devtools): authorized work branch",
-    )
-
-    assert operation.request.authorization is ImplementationAuthorization.DRAFT_PR
+def test_controller_rejects_unbound_draft_pr_authorization() -> None:
+    with pytest.raises(ValidationError, match="exact proposal and base"):
+        _operation(draft_authorization=_draft_authorization(proposal_sha256="0" * 64))
