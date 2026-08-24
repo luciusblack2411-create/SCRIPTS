@@ -79,6 +79,24 @@ def _valid_output() -> str:
     )
 
 
+def _assert_strict_object_schemas(node: object) -> None:
+    if isinstance(node, dict):
+        assert "default" not in node
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            required = node.get("required")
+            assert isinstance(required, list)
+            assert len(required) == len(properties)
+            assert set(required) == set(properties)
+            assert node.get("additionalProperties") is False
+        for value in node.values():
+            _assert_strict_object_schemas(value)
+        return
+    if isinstance(node, list):
+        for value in node:
+            _assert_strict_object_schemas(value)
+
+
 def test_local_codex_backend_uses_ephemeral_schema_constrained_read_only_exec() -> None:
     runner = RecordingRunner()
     backend = CodexCliSynthesisBackend(
@@ -113,7 +131,7 @@ def test_local_codex_backend_uses_ephemeral_schema_constrained_read_only_exec() 
     assert runner.cwd.name.startswith("cisco-assessment-codex-")
 
 
-def test_local_codex_backend_writes_project_owned_output_schema() -> None:
+def test_local_codex_backend_writes_project_owned_strict_output_schema() -> None:
     runner = RecordingRunner()
     backend = CodexCliSynthesisBackend(
         runner=runner,
@@ -130,6 +148,13 @@ def test_local_codex_backend_writes_project_owned_output_schema() -> None:
     assert "repository_mutation_requested" in properties
     assert "contract_approval_claimed" in properties
     assert "cisco_execution_allowed" in properties
+    assert "notes" in runner.schema_payload["required"]
+    assert "repository_mutation_requested" in runner.schema_payload["required"]
+
+    defs = runner.schema_payload["$defs"]
+    change_schema = defs["CodexSynthesisChange"]
+    assert "acceptance_criteria" in change_schema["required"]
+    _assert_strict_object_schemas(runner.schema_payload)
 
 
 def test_local_codex_backend_does_not_forward_control_plane_or_cisco_secrets() -> None:
