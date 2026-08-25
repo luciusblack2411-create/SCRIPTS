@@ -6,6 +6,7 @@ import json
 import os
 import re
 from collections.abc import Mapping, Sequence
+from time import sleep
 from typing import Protocol, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -96,6 +97,8 @@ _CHECKOUT_MERGE_RE = re.compile(r"git checkout\s+.*?(refs/(?:remotes/)?pull/\d+/
 _HEAD_MERGE_RE = re.compile(
     r"HEAD is now at [0-9a-f]+ Merge ([0-9a-f]{40}) into ([0-9a-f]{40})"
 )
+_WORKFLOW_LOG_READ_ATTEMPTS = 5
+_WORKFLOW_LOG_RETRY_DELAY_SECONDS = 2.0
 
 
 class GitHubRestReadBackend:
@@ -182,10 +185,7 @@ class GitHubRestReadBackend:
         jobs = _mapping_array(payload.get("jobs"), "jobs")
         for job in jobs:
             job_id = _require_int(job, "id")
-            logs = self._transport.get_text(
-                f"{_repo_path(repository)}/actions/jobs/{job_id}/logs",
-                accept="application/vnd.github+json",
-            )
+            logs = self._get_workflow_job_log(repository, job_id)
             observed = _parse_checkout_log(logs)
             if observed is None:
                 continue
@@ -205,6 +205,21 @@ class GitHubRestReadBackend:
                 "head_sha": head_sha,
             }
         return None
+
+    def _get_workflow_job_log(self, repository: str, job_id: int) -> str:
+        path = f"{_repo_path(repository)}/actions/jobs/{job_id}/logs"
+        for attempt in range(_WORKFLOW_LOG_READ_ATTEMPTS):
+            try:
+                return self._transport.get_text(
+                    path,
+                    accept="application/vnd.github+json",
+                )
+            except GitHubRestError as exc:
+                final_attempt = attempt == _WORKFLOW_LOG_READ_ATTEMPTS - 1
+                if exc.status_code != 404 or final_attempt:
+                    raise
+                sleep(_WORKFLOW_LOG_RETRY_DELAY_SECONDS)
+        raise AssertionError("unreachable workflow log retry state")
 
     def _paginate_array(self, path: str) -> tuple[Mapping[str, object], ...]:
         items: list[Mapping[str, object]] = []
