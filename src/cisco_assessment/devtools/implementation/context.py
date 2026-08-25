@@ -66,7 +66,7 @@ def load_implementation_context(
     request: ImplementationRequest,
     backend: ImplementationReadBackend,
 ) -> ImplementationContext:
-    """Observe the exact base HEAD and authorized repository paths without mutation."""
+    """Observe the exact base HEAD and explicitly scoped repository paths without mutation."""
     branch = backend.get_branch(request.repository, request.expected_base_branch)
     if branch is None:
         raise ImplementationContextError(
@@ -74,8 +74,8 @@ def load_implementation_context(
         )
     base_sha = _branch_sha(branch)
     entries = backend.list_tree(request.repository, base_sha)
-    allowed = set(request.authorized_components)
-    prohibited = set(request.prohibited_components)
+    observable = set(request.authorized_components).union(request.prohibited_components)
+    observable.discard(ComponentId.UNKNOWN)
 
     files: list[ImplementationContextFile] = []
     for entry in entries:
@@ -84,7 +84,7 @@ def load_implementation_context(
         path = _required_string(entry, "path", context="tree entry")
         blob_sha = _required_string(entry, "sha", context=f"tree entry {path!r}")
         component = classify_changed_path(path)
-        if component not in allowed or component in prohibited:
+        if component not in observable:
             continue
         size_value = entry.get("size")
         if size_value is not None and (not isinstance(size_value, int) or size_value < 0):
