@@ -117,6 +117,15 @@ COMMAND_CATALOG_V0_1 = CommandCatalog(
             ParserId.IOS_SHOW_IP_INTERFACE_BRIEF_V1,
         ),
         _command(
+            CommandId.INTERFACES_SWITCHPORT,
+            CommandCategory.INTERFACES,
+            "Collect per-interface switchport state, modes, VLAN assignments, trunk VLANs, voice VLAN, and trunk negotiation observations.",
+            NormalizedModelId.SWITCHPORT_OBSERVATION,
+            CommandRequirement.REQUIRED,
+            "show interfaces switchport",
+            ParserId.IOS_SHOW_INTERFACES_SWITCHPORT_V1,
+        ),
+        _command(
             CommandId.VLANS_BRIEF,
             CommandCategory.VLANS,
             "Collect observed VLAN identifiers, names, states, and associated ports reported by the RAW output.",

@@ -11,10 +11,10 @@ from cisco_assessment.models.enums import PlatformFamily
 
 
 def test_mvp_catalog_contains_expected_command_count() -> None:
-    assert len(COMMAND_CATALOG_V0_1.commands) == 20
+    assert len(COMMAND_CATALOG_V0_1.commands) == 21
 
 
-def test_mvp_catalog_has_14_required_and_6_optional_commands() -> None:
+def test_mvp_catalog_has_15_required_and_6_optional_commands() -> None:
     required = COMMAND_CATALOG_V0_1.for_platform(
         PlatformFamily.IOS_XE,
         CommandRequirement.REQUIRED,
@@ -23,7 +23,7 @@ def test_mvp_catalog_has_14_required_and_6_optional_commands() -> None:
         PlatformFamily.IOS_XE,
         CommandRequirement.OPTIONAL,
     )
-    assert len(required) == 14
+    assert len(required) == 15
     assert len(optional) == 6
 
 
@@ -63,6 +63,58 @@ def test_show_inventory_contract_is_productive() -> None:
     assert variant is not None
     assert variant.cli_command == "show inventory"
     assert variant.parser_id is ParserId.IOS_SHOW_INVENTORY_V1
+
+
+def test_switchport_observation_contract_is_stable() -> None:
+    assert CommandId.INTERFACES_SWITCHPORT.value == "interfaces.switchport"
+    assert (
+        ParserId.IOS_SHOW_INTERFACES_SWITCHPORT_V1.value
+        == "ios.show_interfaces_switchport.v1"
+    )
+    assert NormalizedModelId.SWITCHPORT_OBSERVATION.value == "SwitchportObservation"
+
+    definitions = tuple(
+        definition
+        for definition in COMMAND_CATALOG_V0_1.commands
+        if definition.command_id is CommandId.INTERFACES_SWITCHPORT
+    )
+    assert len(definitions) == 1
+
+    definition = definitions[0]
+    assert definition.category is CommandCategory.INTERFACES
+    assert definition.normalized_model is NormalizedModelId.SWITCHPORT_OBSERVATION
+    assert definition.requirement is CommandRequirement.REQUIRED
+    assert definition.unsupported_platform_policy is UnsupportedPlatformPolicy.SKIP
+    assert definition.read_only is True
+    assert definition.supported_platforms == frozenset(
+        {PlatformFamily.IOS, PlatformFamily.IOS_XE}
+    )
+
+    for platform in (PlatformFamily.IOS, PlatformFamily.IOS_XE):
+        variant = COMMAND_CATALOG_V0_1.resolve(
+            CommandId.INTERFACES_SWITCHPORT,
+            platform,
+        )
+        assert variant is not None
+        assert variant.cli_command == "show interfaces switchport"
+        assert variant.parser_id is ParserId.IOS_SHOW_INTERFACES_SWITCHPORT_V1
+
+
+def test_switchport_observation_rejects_unsupported_platforms() -> None:
+    assert (
+        COMMAND_CATALOG_V0_1.resolve(
+            CommandId.INTERFACES_SWITCHPORT,
+            PlatformFamily.NX_OS,
+        )
+        is None
+    )
+    assert (
+        COMMAND_CATALOG_V0_1.resolve(
+            CommandId.INTERFACES_SWITCHPORT,
+            PlatformFamily.UNKNOWN,
+        )
+        is None
+    )
 
 
 def test_vlan_observation_contract_is_stable() -> None:
