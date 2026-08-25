@@ -97,8 +97,7 @@ _CHECKOUT_MERGE_RE = re.compile(r"git checkout\s+.*?(refs/(?:remotes/)?pull/\d+/
 _HEAD_MERGE_RE = re.compile(
     r"HEAD is now at [0-9a-f]+ Merge ([0-9a-f]{40}) into ([0-9a-f]{40})"
 )
-_WORKFLOW_LOG_READ_ATTEMPTS = 5
-_WORKFLOW_LOG_RETRY_DELAY_SECONDS = 2.0
+_WORKFLOW_LOG_RETRY_DELAYS_SECONDS = (2.0, 4.0, 8.0, 16.0, 30.0, 60.0)
 
 
 class GitHubRestReadBackend:
@@ -208,17 +207,18 @@ class GitHubRestReadBackend:
 
     def _get_workflow_job_log(self, repository: str, job_id: int) -> str:
         path = f"{_repo_path(repository)}/actions/jobs/{job_id}/logs"
-        for attempt in range(_WORKFLOW_LOG_READ_ATTEMPTS):
+        attempts = len(_WORKFLOW_LOG_RETRY_DELAYS_SECONDS) + 1
+        for attempt in range(attempts):
             try:
                 return self._transport.get_text(
                     path,
                     accept="application/vnd.github+json",
                 )
             except GitHubRestError as exc:
-                final_attempt = attempt == _WORKFLOW_LOG_READ_ATTEMPTS - 1
+                final_attempt = attempt == attempts - 1
                 if exc.status_code != 404 or final_attempt:
                     raise
-                sleep(_WORKFLOW_LOG_RETRY_DELAY_SECONDS)
+                sleep(_WORKFLOW_LOG_RETRY_DELAYS_SECONDS[attempt])
         raise AssertionError("unreachable workflow log retry state")
 
     def _paginate_array(self, path: str) -> tuple[Mapping[str, object], ...]:
