@@ -308,6 +308,7 @@ def record_ready_for_review_result(
         or result.head_sha != run.head_sha
     ):
         raise FeatureOrchestrationError("Ready-for-Review result does not match the run checkpoint")
+    _validate_nested_review_binding(run, result)
 
     if result.decision is ReadyForReviewDecision.NEEDS_BASE_REFRESH:
         state = FeatureOrchestrationState.NEEDS_BASE_REFRESH
@@ -316,6 +317,10 @@ def record_ready_for_review_result(
     else:
         if not result.ready_for_review or not result.base_fresh_after_transition:
             raise FeatureOrchestrationError("READY_FOR_REVIEW result lacks fresh Ready evidence")
+        if result.base_head_after_transition != run.base_sha:
+            raise FeatureOrchestrationError("READY_FOR_REVIEW result base evidence does not match the run")
+        if result.review_report.base_branch_head_sha != run.base_sha:
+            raise FeatureOrchestrationError("APPROVE review base evidence does not match the run")
         if result.review_report.decision is not ReviewDecision.APPROVE:
             raise FeatureOrchestrationError("Human Merge Gate requires an APPROVE review report")
         state = FeatureOrchestrationState.HUMAN_MERGE_GATE
@@ -327,6 +332,25 @@ def record_ready_for_review_result(
             "state": state,
         }
     )
+
+
+def _validate_nested_review_binding(
+    run: FeatureOrchestrationRun,
+    result: ReadyForReviewResult,
+) -> None:
+    report = result.review_report
+    if (
+        report.repository != run.repository
+        or report.pr_number != run.pr_number
+        or report.base_branch != run.base_branch
+        or report.base_sha != run.base_sha
+        or report.head_branch != run.head_branch
+        or report.head_sha != run.head_sha
+        or report.objective != run.objective
+    ):
+        raise FeatureOrchestrationError(
+            "Ready-for-Review nested review report does not match the run checkpoint"
+        )
 
 
 def _validated_run(run: FeatureOrchestrationRun) -> FeatureOrchestrationRun:
