@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -92,6 +93,46 @@ def test_runtime_builds_real_dependencies_with_bounded_preflight(
     assert dependencies.source_backend._transport._token == "implementation-secret"
     assert dependencies.mutation_backend._transport._token == "implementation-secret"
     assert dependencies.ci_backend._transport._token == "implementation-secret"
+
+
+def test_preflight_serialization_exposes_sources_without_credential_secrets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_feature_execution,
+        "_probe_codex_cli_version",
+        lambda executable, environment: VALIDATED_CODEX_CLI_VERSION,
+    )
+    environment = _environment()
+
+    preflight, _ = build_local_feature_execution_dependencies(
+        journal_root=tmp_path,
+        environ=environment,
+    )
+    evidence = preflight.model_dump(mode="json")
+    serialized_evidence = json.dumps(evidence, sort_keys=True)
+
+    assert evidence["implementation_credential_source"] == IMPLEMENTATION_TOKEN_ENV
+    assert evidence["draft_pr_credential_source"] == READY_FOR_REVIEW_TOKEN_ENV
+    assert evidence["review_credential_source"] == PR_REVIEW_TOKEN_ENV
+    assert evidence["merge_performed"] is False
+    assert evidence["human_merge_gate_required"] is True
+    assert evidence["cisco_execution_allowed"] is False
+
+    credential_environment_names = (
+        IMPLEMENTATION_TOKEN_ENV,
+        READY_FOR_REVIEW_TOKEN_ENV,
+        PR_REVIEW_TOKEN_ENV,
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "OPENAI_API_KEY",
+        "CISCO_USERNAME",
+        "CISCO_PASSWORD",
+        "CISCO_ASSESSMENT_HUMAN_MERGE_TOKEN",
+    )
+    for name in credential_environment_names:
+        assert environment[name] not in serialized_evidence
 
 
 def test_runtime_fails_closed_on_unvalidated_codex_version(
