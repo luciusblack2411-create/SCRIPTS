@@ -151,7 +151,7 @@ class CodexCliSynthesisBackend:
             output_path = root / "codex-synthesis-output.json"
             schema_path.write_text(
                 json.dumps(
-                    _codex_structured_output_schema(),
+                    _codex_structured_output_schema(prompt),
                     ensure_ascii=False,
                     separators=(",", ":"),
                     sort_keys=True,
@@ -204,11 +204,39 @@ class CodexCliSynthesisBackend:
             return output
 
 
-def _codex_structured_output_schema() -> dict[str, object]:
+def _codex_structured_output_schema(prompt: str | None = None) -> dict[str, object]:
     """Adapt the project-owned Pydantic schema to Codex strict structured-output rules."""
     schema = CodexSynthesisOutput.model_json_schema()
+    if prompt is not None:
+        _bind_output_metadata_to_prompt(schema, prompt)
     _normalize_structured_output_schema(schema)
     return schema
+
+
+def _bind_output_metadata_to_prompt(schema: dict[str, object], prompt: str) -> None:
+    """Constrain echoed output metadata to the exact trusted prompt values when available."""
+    try:
+        envelope = json.loads(prompt)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(envelope, dict):
+        return
+    prompt_input = envelope.get("input")
+    properties = schema.get("properties")
+    if not isinstance(prompt_input, dict) or not isinstance(properties, dict):
+        return
+
+    bindings: dict[str, str] = {}
+    for name in ("repository", "base_sha", "objective"):
+        value = prompt_input.get(name)
+        if not isinstance(value, str) or not value:
+            return
+        bindings[name] = value
+
+    for name, value in bindings.items():
+        field_schema = properties.get(name)
+        if isinstance(field_schema, dict):
+            field_schema["const"] = value
 
 
 def _normalize_structured_output_schema(node: object) -> None:
