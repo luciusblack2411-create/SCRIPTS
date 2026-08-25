@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal, Protocol
 
 from pydantic import Field, model_validator
 
+from ..pr_review.check_ids import ReviewCheckId
+from ..pr_review.enums import ReviewCheckStatus, ReviewDecision
 from ..pr_review.models import ReviewRequest
 from ..ready_for_review import (
     ReadyForReviewAuthorization,
+    ReadyForReviewDecision,
     ReadyForReviewOperation,
     ReadyForReviewResult,
 )
@@ -61,6 +66,13 @@ from .workspace import ImplementationWorkspace
 
 CONTROLLER_ID: Literal["FEATURE_EXECUTION_CONTROLLER_V1"] = "FEATURE_EXECUTION_CONTROLLER_V1"
 SCHEMA_VERSION: Literal["1.0"] = "1.0"
+_TRANSIENT_READY_CI_CHECK_IDS = frozenset(
+    {
+        ReviewCheckId.CI_001,
+        ReviewCheckId.CI_002,
+        ReviewCheckId.CI_003,
+    }
+)
 
 
 class FeatureExecutionControllerError(RuntimeError):
@@ -331,13 +343,16 @@ def execute_feature_delivery_controller(
         related_issue_ids=proposal.request.related_issue_ids,
         require_ci_success=True,
     )
-    ready_control = dependencies.ready_for_review_executor(
-        ReadyForReviewOperation(
-            review_request=review_request,
-            authorization=operation.ready_for_review_authorization,
-        )
+    ready_operation = ReadyForReviewOperation(
+        review_request=review_request,
+        authorization=operation.ready_for_review_authorization,
     )
-    ready_result = ready_control.ready_for_review
+    ready_result = _execute_ready_for_review_with_ci_wait(
+        ready_operation,
+        dependencies.ready_for_review_executor,
+        timeout_seconds=operation.timeout_seconds,
+        poll_interval_seconds=operation.poll_interval_seconds,
+    )
     run = record_ready_for_review_result(run, ready_result)
     journal = _append_and_persist(dependencies.journal_store, journal, run)
     terminal = _decision_for_state(run.state)
@@ -353,6 +368,53 @@ def execute_feature_delivery_controller(
         operational_result=operational_result,
         draft_pr_result=draft_result,
         ready_for_review_result=ready_result,
+    )
+
+
+def _execute_ready_for_review_with_ci_wait(
+    operation: ReadyForReviewOperation,
+    executor: ReadyForReviewExecutor,
+    *,
+    timeout_seconds: float,
+    poll_interval_seconds: float,
+    sleeper: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> ReadyForReviewResult:
+    """Retry only fail-closed Ready reviews blocked solely by transient current-head CI state."""
+    deadline = clock() + timeout_seconds
+    while True:
+        control = executor(operation)
+        result = control.ready_for_review
+        if not _is_transient_ready_ci_pending(result):
+            return result
+        remaining = deadline - clock()
+        if remaining <= 0:
+            return result
+        sleeper(min(poll_interval_seconds, remaining))
+
+
+def _is_transient_ready_ci_pending(result: ReadyForReviewResult) -> bool:
+    if result.decision is not ReadyForReviewDecision.REVIEW_NOT_APPROVED:
+        return False
+    if result.ready_for_review or not result.base_fresh_after_transition:
+        return False
+
+    report = result.review_report
+    if report.decision is not ReviewDecision.BLOCKED or report.findings:
+        return False
+
+    blockers = tuple(
+        check
+        for check in report.checks
+        if check.blocking
+        and check.status in {ReviewCheckStatus.UNKNOWN, ReviewCheckStatus.ERROR}
+    )
+    if not blockers:
+        return False
+    return all(
+        check.status is ReviewCheckStatus.UNKNOWN
+        and check.check_id in _TRANSIENT_READY_CI_CHECK_IDS
+        for check in blockers
     )
 
 
