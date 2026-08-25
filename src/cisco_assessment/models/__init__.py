@@ -18,6 +18,11 @@ from .normalized import (
     hardware_inventory_record_id,
 )
 from .raw import RawCommandOutput
+from .switchport import (
+    SWITCHPORT_OBSERVATION_SCHEMA_VERSION,
+    SwitchportObservation,
+    SwitchportRecord,
+)
 from .vlan import (
     VLAN_OBSERVATION_SCHEMA_VERSION,
     VlanObservation,
@@ -28,6 +33,7 @@ from .vlan import (
 __all__ = [
     "HARDWARE_INVENTORY_SCHEMA_VERSION",
     "INTERFACE_OBSERVATION_SCHEMA_VERSION",
+    "SWITCHPORT_OBSERVATION_SCHEMA_VERSION",
     "VLAN_OBSERVATION_SCHEMA_VERSION",
     "AssessmentRun",
     "AssessmentRunStatus",
@@ -43,6 +49,8 @@ __all__ = [
     "InterfaceStatusRecord",
     "PlatformFamily",
     "RawCommandOutput",
+    "SwitchportObservation",
+    "SwitchportRecord",
     "VlanObservation",
     "VlanRecord",
     "VlanStatus",
