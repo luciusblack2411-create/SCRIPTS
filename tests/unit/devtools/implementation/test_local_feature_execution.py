@@ -94,6 +94,41 @@ def test_runtime_builds_real_dependencies_with_bounded_preflight(
     assert dependencies.ci_backend._transport._token == "implementation-secret"
 
 
+def test_preflight_pydantic_serialization_contains_sources_without_secrets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        local_feature_execution,
+        "_probe_codex_cli_version",
+        lambda executable, environment: VALIDATED_CODEX_CLI_VERSION,
+    )
+    environment = _environment()
+
+    preflight, _ = build_local_feature_execution_dependencies(
+        journal_root=tmp_path,
+        environ=environment,
+    )
+
+    serialized = preflight.model_dump_json()
+
+    assert IMPLEMENTATION_TOKEN_ENV in serialized
+    assert READY_FOR_REVIEW_TOKEN_ENV in serialized
+    assert PR_REVIEW_TOKEN_ENV in serialized
+    assert environment[IMPLEMENTATION_TOKEN_ENV] not in serialized
+    assert environment[READY_FOR_REVIEW_TOKEN_ENV] not in serialized
+    assert environment[PR_REVIEW_TOKEN_ENV] not in serialized
+    assert environment["GITHUB_TOKEN"] not in serialized
+    assert environment["GH_TOKEN"] not in serialized
+    assert environment["OPENAI_API_KEY"] not in serialized
+    assert environment["CISCO_USERNAME"] not in serialized
+    assert environment["CISCO_PASSWORD"] not in serialized
+    assert environment["CISCO_ASSESSMENT_HUMAN_MERGE_TOKEN"] not in serialized
+    assert preflight.merge_performed is False
+    assert preflight.human_merge_gate_required is True
+    assert preflight.cisco_execution_allowed is False
+
+
 def test_runtime_fails_closed_on_unvalidated_codex_version(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
