@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -92,6 +93,37 @@ def test_runtime_builds_real_dependencies_with_bounded_preflight(
     assert dependencies.source_backend._transport._token == "implementation-secret"
     assert dependencies.mutation_backend._transport._token == "implementation-secret"
     assert dependencies.ci_backend._transport._token == "implementation-secret"
+
+
+def test_preflight_pydantic_serialization_exposes_sources_without_secrets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment = _environment()
+    monkeypatch.setattr(
+        local_feature_execution,
+        "_probe_codex_cli_version",
+        lambda executable, supplied_environment: VALIDATED_CODEX_CLI_VERSION,
+    )
+
+    preflight, _ = build_local_feature_execution_dependencies(
+        journal_root=tmp_path,
+        environ=environment,
+    )
+
+    serialized_evidence = preflight.model_dump_json()
+    evidence = json.loads(serialized_evidence)
+
+    assert evidence["implementation_credential_source"] == IMPLEMENTATION_TOKEN_ENV
+    assert evidence["draft_pr_credential_source"] == READY_FOR_REVIEW_TOKEN_ENV
+    assert evidence["review_credential_source"] == PR_REVIEW_TOKEN_ENV
+    assert evidence["merge_performed"] is False
+    assert evidence["human_merge_gate_required"] is True
+    assert evidence["cisco_execution_allowed"] is False
+
+    for secret in environment.values():
+        if "secret" in secret or secret == "switch-password":
+            assert secret not in serialized_evidence
 
 
 def test_runtime_fails_closed_on_unvalidated_codex_version(
