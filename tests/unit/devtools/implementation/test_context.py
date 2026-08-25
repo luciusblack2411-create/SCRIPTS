@@ -47,7 +47,7 @@ def _request() -> ImplementationRequest:
     )
 
 
-def test_context_observes_exact_base_and_only_authorized_paths() -> None:
+def test_context_observes_exact_base_and_explicit_authorized_or_prohibited_scope() -> None:
     backend = FakeBackend(
         branch={"commit": {"sha": "base-123"}},
         tree=(
@@ -63,11 +63,13 @@ def test_context_observes_exact_base_and_only_authorized_paths() -> None:
 
     assert context.base_sha == "base-123"
     assert tuple(item.path for item in context.files) == (
+        "src/cisco_assessment/collector/session.py",
         "src/cisco_assessment/parsers/a.py",
         "src/cisco_assessment/parsers/z.py",
         "tests/unit/parsers/test_z.py",
     )
     assert context.observed_components == (
+        ComponentId.COLLECTOR,
         ComponentId.PARSER,
         ComponentId.TESTING_FIXTURES,
     )
@@ -75,6 +77,26 @@ def test_context_observes_exact_base_and_only_authorized_paths() -> None:
         ("branch", "owner/repo", "main"),
         ("tree", "owner/repo", "base-123"),
     ]
+
+
+def test_context_never_observes_unknown_component_even_when_explicitly_prohibited() -> None:
+    request = _request().model_copy(
+        update={"prohibited_components": (ComponentId.COLLECTOR, ComponentId.UNKNOWN)}
+    )
+    backend = FakeBackend(
+        branch={"commit": {"sha": "base-123"}},
+        tree=(
+            {"path": "misc/private.py", "type": "blob", "sha": "unknown"},
+            {"path": "src/cisco_assessment/collector/session.py", "type": "blob", "sha": "c"},
+        ),
+    )
+
+    context = load_implementation_context(request, backend)
+
+    assert tuple(item.path for item in context.files) == (
+        "src/cisco_assessment/collector/session.py",
+    )
+    assert context.observed_components == (ComponentId.COLLECTOR,)
 
 
 def test_context_does_not_infer_missing_branch_or_malformed_metadata() -> None:
