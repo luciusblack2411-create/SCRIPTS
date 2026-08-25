@@ -117,7 +117,7 @@ def build_codex_synthesis_prompt(
     plan: ImplementationPlan,
     inspection: ImplementationSourceInspection,
 ) -> CodexSynthesisPrompt:
-    """Build a base-bound prompt only from approved and byte-pinned project evidence."""
+    """Build a base-bound prompt only from explicitly scoped and byte-pinned project evidence."""
     request = ImplementationRequest.model_validate(request.model_dump(mode="python"))
     context = ImplementationContext.model_validate(context.model_dump(mode="python"))
     plan = ImplementationPlan.model_validate(plan.model_dump(mode="python"))
@@ -151,9 +151,11 @@ def render_codex_synthesis_prompt(prompt: CodexSynthesisPrompt) -> str:
     prompt = CodexSynthesisPrompt.model_validate(prompt.model_dump(mode="python"))
     envelope = {
         "instructions": (
-            "Return JSON only matching CodexSynthesisOutput. Propose file content only. "
-            "Do not claim approval, repository mutation, merge authority, Cisco execution, "
-            "or evidence that is not present in this prompt."
+            "Return JSON only matching CodexSynthesisOutput. Propose file content only within "
+            "authorized_components. Sources from prohibited_components are explicit read-only "
+            "evidence and do not grant authority to change those components. Do not claim "
+            "approval, repository mutation, merge authority, Cisco execution, or evidence that "
+            "is not present in this prompt."
         ),
         "input": prompt.model_dump(mode="json"),
     }
@@ -240,8 +242,8 @@ def _validate_bound_inputs(
     if inspection.repository != request.repository or inspection.base_sha != context.base_sha:
         raise ImplementationSynthesisError("source inspection does not match exact context base")
 
-    allowed = set(request.authorized_components)
-    prohibited = set(request.prohibited_components)
+    observable = set(request.authorized_components).union(request.prohibited_components)
+    observable.discard(ComponentId.UNKNOWN)
     context_by_path = {item.path: item for item in context.files}
     for source in inspection.files:
         context_file = context_by_path.get(source.path)
@@ -249,9 +251,9 @@ def _validate_bound_inputs(
             raise ImplementationSynthesisError(
                 f"source inspection path {source.path!r} is absent from context evidence"
             )
-        if source.component not in allowed or source.component in prohibited:
+        if source.component not in observable:
             raise ImplementationSynthesisError(
-                f"source inspection path {source.path!r} is outside approved synthesis scope"
+                f"source inspection path {source.path!r} is outside explicitly scoped synthesis evidence"
             )
         if source.blob_sha != context_file.blob_sha or source.component is not context_file.component:
             raise ImplementationSynthesisError(
