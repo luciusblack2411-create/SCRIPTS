@@ -33,6 +33,15 @@ class FlakyWorkflowLogTransport:
         )
 
 
+def _expected_provenance() -> Mapping[str, object]:
+    return {
+        "ref": "refs/remotes/pull/37/merge",
+        "sha": "1111111111111111111111111111111111111111",
+        "base_sha": "3333333333333333333333333333333333333333",
+        "head_sha": "2222222222222222222222222222222222222222",
+    }
+
+
 def test_workflow_log_transient_404_is_retried_without_inference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -40,18 +49,29 @@ def test_workflow_log_transient_404_is_retried_without_inference(
     delays: list[float] = []
     monkeypatch.setattr(github_rest, "sleep", delays.append)
 
-    provenance: Mapping[str, object] | None = GitHubRestReadBackend(
-        transport
-    ).get_workflow_checkout_provenance("owner/repo", 134)
+    provenance = GitHubRestReadBackend(transport).get_workflow_checkout_provenance(
+        "owner/repo", 134
+    )
 
-    assert provenance == {
-        "ref": "refs/remotes/pull/37/merge",
-        "sha": "1111111111111111111111111111111111111111",
-        "base_sha": "3333333333333333333333333333333333333333",
-        "head_sha": "2222222222222222222222222222222222222222",
-    }
+    assert provenance == _expected_provenance()
     assert transport.text_calls == 2
     assert delays == [2.0]
+
+
+def test_workflow_log_retry_window_survives_more_than_previous_five_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FlakyWorkflowLogTransport(failures=5)
+    delays: list[float] = []
+    monkeypatch.setattr(github_rest, "sleep", delays.append)
+
+    provenance = GitHubRestReadBackend(transport).get_workflow_checkout_provenance(
+        "owner/repo", 134
+    )
+
+    assert provenance == _expected_provenance()
+    assert transport.text_calls == 6
+    assert delays == [2.0, 4.0, 8.0, 16.0, 30.0]
 
 
 def test_workflow_log_persistent_404_still_fails_closed(
@@ -66,8 +86,8 @@ def test_workflow_log_persistent_404_still_fails_closed(
             "owner/repo", 134
         )
 
-    assert transport.text_calls == 5
-    assert delays == [2.0, 2.0, 2.0, 2.0]
+    assert transport.text_calls == 7
+    assert delays == [2.0, 4.0, 8.0, 16.0, 30.0, 60.0]
 
 
 def test_workflow_log_non_404_is_not_retried(
