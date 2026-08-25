@@ -214,7 +214,7 @@ def _codex_structured_output_schema(prompt: str | None = None) -> dict[str, obje
 
 
 def _bind_output_metadata_to_prompt(schema: dict[str, object], prompt: str) -> None:
-    """Constrain echoed output metadata to the exact trusted prompt values when available."""
+    """Constrain echoed output metadata and criteria to exact trusted prompt values."""
     try:
         envelope = json.loads(prompt)
     except (json.JSONDecodeError, TypeError):
@@ -237,6 +237,29 @@ def _bind_output_metadata_to_prompt(schema: dict[str, object], prompt: str) -> N
         field_schema = properties.get(name)
         if isinstance(field_schema, dict):
             field_schema["const"] = value
+
+    approved_criteria = prompt_input.get("acceptance_criteria")
+    if not isinstance(approved_criteria, list) or not approved_criteria:
+        return
+    if any(not isinstance(item, str) or not item for item in approved_criteria):
+        return
+
+    definitions = schema.get("$defs")
+    if not isinstance(definitions, dict):
+        return
+    change_schema = definitions.get("CodexSynthesisChange")
+    if not isinstance(change_schema, dict):
+        return
+    change_properties = change_schema.get("properties")
+    if not isinstance(change_properties, dict):
+        return
+    criteria_schema = change_properties.get("acceptance_criteria")
+    if not isinstance(criteria_schema, dict):
+        return
+    item_schema = criteria_schema.get("items")
+    if not isinstance(item_schema, dict):
+        return
+    item_schema["enum"] = list(dict.fromkeys(approved_criteria))
 
 
 def _normalize_structured_output_schema(node: object) -> None:
