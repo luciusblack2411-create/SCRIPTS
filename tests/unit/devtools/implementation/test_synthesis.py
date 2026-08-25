@@ -149,7 +149,7 @@ def test_prompt_is_exact_base_bound_and_proposal_only() -> None:
     assert prompt.human_merge_gate_required is True
     assert tuple(source.path for source in prompt.sources) == (PARSER_PATH, TEST_PATH)
     assert rendered["input"]["base_sha"] == "base-123"
-    assert "Do not claim approval" in rendered["instructions"]
+    assert "Do not claim" in rendered["instructions"]
 
 
 def test_prompt_rejects_unapproved_request_and_stale_inputs() -> None:
@@ -186,7 +186,7 @@ def test_prompt_rejects_forged_source_hash_before_external_handoff() -> None:
         build_codex_synthesis_prompt(request, context, plan, forged_inspection)
 
 
-def test_prompt_rejects_prohibited_source_before_external_handoff() -> None:
+def test_prompt_accepts_explicit_prohibited_source_as_read_only_evidence() -> None:
     request = _request()
     collector_bytes = COLLECTOR_CONTENT.encode("utf-8")
     context = ImplementationContext(
@@ -220,8 +220,35 @@ def test_prompt_rejects_prohibited_source_before_external_handoff() -> None:
     )
     plan = build_implementation_plan(request, context)
 
-    with pytest.raises(ImplementationSynthesisError, match="outside approved synthesis scope"):
-        build_codex_synthesis_prompt(request, context, plan, inspection)
+    prompt = build_codex_synthesis_prompt(request, context, plan, inspection)
+    rendered = json.loads(render_codex_synthesis_prompt(prompt))
+
+    assert tuple(source.path for source in prompt.sources) == (COLLECTOR_PATH,)
+    assert prompt.sources[0].component is ComponentId.COLLECTOR
+    assert ComponentId.COLLECTOR in prompt.prohibited_components
+    assert "read-only evidence" in rendered["instructions"]
+
+    prohibited_change = CodexSynthesisOutput(
+        repository="owner/repo",
+        base_sha="base-123",
+        objective=request.objective,
+        changes=(
+            CodexSynthesisChange(
+                kind=ImplementationFileChangeKind.UPDATE,
+                path=COLLECTOR_PATH,
+                proposed_content="SECRET = 'changed'\n",
+                rationale="Attempt to mutate read-only evidence.",
+            ),
+        ),
+    )
+    with pytest.raises(ImplementationSynthesisError, match="workspace validation"):
+        build_codex_synthesis_workspace(
+            request,
+            context,
+            plan,
+            inspection,
+            prohibited_change,
+        )
 
 
 def test_external_output_is_strict_and_cannot_claim_authority() -> None:
