@@ -60,6 +60,10 @@ class Backend:
         )
         self.race = False
         self.base_drift = False
+        self.ref_updated = False
+        self.ref_updates = 0
+        self.post_update_pr_reads = 0
+        self.post_update_pr: Callable[[int], Mapping[str, object] | None] | None = None
         self.dispatched = 0
         self.poll = 0
         self.runs: Callable[[int], Sequence[Mapping[str, object]]] = lambda poll: (
@@ -101,6 +105,9 @@ class Backend:
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object] | None:
         del repository, pr_number
+        if self.ref_updated and self.post_update_pr is not None:
+            self.post_update_pr_reads += 1
+            return self.post_update_pr(self.post_update_pr_reads)
         return self.pr
 
     def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
@@ -137,6 +144,7 @@ class Backend:
 
     def update_existing_ref_fast_forward(self, repository: str, branch: str, old_sha: str, new_sha: str) -> None:
         del repository
+        self.ref_updates += 1
         assert old_sha == OLD
         if self.race:
             self.branches[branch] = "racer"
@@ -152,6 +160,7 @@ class Backend:
             new_sha,
             base_sha=post_base,
         )
+        self.ref_updated = True
 
     def dispatch_amendment_ci(self, repository: str, workflow_file: str, branch: str) -> None:
         assert (repository, workflow_file, branch) == ("owner/repo", "ci.yml", BRANCH)
@@ -184,9 +193,22 @@ def request() -> ImplementationDraftPrAmendmentRequest:
     )
 
 
-def execute(backend: Backend, clock: Clock | None = None):
+def execute(
+    backend: Backend,
+    clock: Clock | None = None,
+    *,
+    pr_binding_timeout_seconds: float = 3,
+):
     actual_clock = clock or Clock()
-    return execute_draft_pr_amendment(request(), backend, timeout_seconds=3, poll_interval_seconds=1, clock=actual_clock, sleeper=actual_clock.sleep)
+    return execute_draft_pr_amendment(
+        request(),
+        backend,
+        timeout_seconds=3,
+        pr_binding_timeout_seconds=pr_binding_timeout_seconds,
+        poll_interval_seconds=1,
+        clock=actual_clock,
+        sleeper=actual_clock.sleep,
+    )
 
 
 def test_success_uses_exact_non_agent_branch_and_records_flags() -> None:
@@ -204,6 +226,56 @@ def test_success_uses_exact_non_agent_branch_and_records_flags() -> None:
     assert backend.dispatched == 1
     assert result.ready_for_review is False and result.merge_performed is False
     assert result.human_merge_gate_required is True and result.cisco_execution_allowed is False
+
+
+def test_post_amendment_pr_head_stale_once_then_converges() -> None:
+    backend = Backend()
+    backend.post_update_pr = lambda read: (
+        backend.payload(OLD) if read == 1 else backend.payload(NEW)
+    )
+
+    result = execute(backend)
+
+    assert result.new_head_sha == NEW
+    assert backend.branches[BRANCH] == NEW
+    assert backend.ref_updates == 1
+    assert backend.post_update_pr_reads == 2
+    assert backend.dispatched == 1
+
+
+def test_post_amendment_pr_head_never_converges_fails_closed() -> None:
+    backend = Backend()
+    backend.post_update_pr = lambda read: backend.payload(OLD)
+    clock = Clock()
+
+    with pytest.raises(
+        ImplementationDraftPrAmendmentError,
+        match="pull request head convergence",
+    ):
+        execute(backend, clock, pr_binding_timeout_seconds=2)
+
+    assert backend.branches[BRANCH] == NEW
+    assert backend.ref_updates == 1
+    assert backend.post_update_pr_reads == 3
+    assert backend.dispatched == 0
+
+
+def test_post_amendment_unexpected_third_head_fails_without_waiting() -> None:
+    backend = Backend()
+    backend.post_update_pr = lambda read: backend.payload("unexpected-third-head")
+    clock = Clock()
+
+    with pytest.raises(
+        ImplementationDraftPrAmendmentError,
+        match="binding is stale",
+    ):
+        execute(backend, clock)
+
+    assert clock.now == 0
+    assert backend.branches[BRANCH] == NEW
+    assert backend.ref_updates == 1
+    assert backend.post_update_pr_reads == 1
+    assert backend.dispatched == 0
 
 
 @pytest.mark.parametrize(
@@ -303,6 +375,7 @@ def _execute_request(
         amendment_request,
         backend,
         timeout_seconds=3,
+        pr_binding_timeout_seconds=3,
         poll_interval_seconds=1,
         clock=clock,
         sleeper=clock.sleep,
@@ -398,4 +471,3 @@ def test_unexpected_third_post_amendment_pr_base_is_rejected() -> None:
 
     assert backend.branches[BRANCH] == NEW
     assert backend.dispatched == 0
-
