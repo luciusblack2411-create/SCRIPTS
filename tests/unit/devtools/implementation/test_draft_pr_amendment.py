@@ -29,6 +29,7 @@ from cisco_assessment.devtools.pr_review.enums import ComponentId
 OLD = "old-head"
 NEW = "new-head"
 BASE = "base-sha"
+PR_BASE_OLD = "pr-base-old"
 BRANCH = "feat/m14-switchport-observation-data-model"
 
 
@@ -44,9 +45,19 @@ class Clock:
 
 
 class Backend:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        pr_base_sha: str = BASE,
+        post_update_pr_base_sha: str | None = None,
+    ) -> None:
         self.branches = {"main": BASE, BRANCH: OLD}
-        self.pr: Mapping[str, object] | None = self.payload(OLD)
+        self.pr_base_sha = pr_base_sha
+        self.post_update_pr_base_sha = post_update_pr_base_sha
+        self.pr: Mapping[str, object] | None = self.payload(
+            OLD,
+            base_sha=pr_base_sha,
+        )
         self.race = False
         self.base_drift = False
         self.dispatched = 0
@@ -58,14 +69,31 @@ class Backend:
             {"id": 11, "name": "quality", "status": "completed", "conclusion": "success"},
         )
 
-    def payload(self, sha: str, repository: str = "owner/repo") -> Mapping[str, object]:
+    def payload(
+        self,
+        sha: str,
+        repository: str = "owner/repo",
+        *,
+        base_sha: str | None = None,
+    ) -> Mapping[str, object]:
+        observed_base_sha = (
+            self.pr_base_sha if base_sha is None else base_sha
+        )
         return {
             "number": 93,
             "state": "open",
             "draft": True,
             "merged": False,
-            "base": {"ref": "main", "sha": BASE, "repo": {"full_name": "owner/repo"}},
-            "head": {"ref": BRANCH, "sha": sha, "repo": {"full_name": repository}},
+            "base": {
+                "ref": "main",
+                "sha": observed_base_sha,
+                "repo": {"full_name": "owner/repo"},
+            },
+            "head": {
+                "ref": BRANCH,
+                "sha": sha,
+                "repo": {"full_name": repository},
+            },
         }
 
     def run(self, run_id: int, status: str, conclusion: str | None) -> Mapping[str, object]:
@@ -115,7 +143,15 @@ class Backend:
         if self.branches[branch] != old_sha:
             raise ImplementationDraftPrAmendmentError("branch moved before PATCH")
         self.branches[branch] = new_sha
-        self.pr = self.payload(new_sha)
+        post_base = (
+            self.pr_base_sha
+            if self.post_update_pr_base_sha is None
+            else self.post_update_pr_base_sha
+        )
+        self.pr = self.payload(
+            new_sha,
+            base_sha=post_base,
+        )
 
     def dispatch_amendment_ci(self, repository: str, workflow_file: str, branch: str) -> None:
         assert (repository, workflow_file, branch) == ("owner/repo", "ci.yml", BRANCH)
@@ -155,8 +191,12 @@ def execute(backend: Backend, clock: Clock | None = None):
 
 def test_success_uses_exact_non_agent_branch_and_records_flags() -> None:
     backend = Backend()
+    legacy_request = request()
+    assert legacy_request.expected_pr_base_sha is None
     result = execute(backend)
     assert result.work_branch == BRANCH
+    assert result.pr_base_sha_before == BASE
+    assert result.pr_base_sha_after == BASE
     assert (result.old_head_sha, result.new_head_sha) == (OLD, NEW)
     assert result.ci.ci_status is AmendmentCiStatus.PASSED
     assert result.ci.decision is AmendmentDecision.READY_FOR_DRAFT_PR
@@ -252,3 +292,110 @@ def test_request_rejects_noncanonical_branch() -> None:
         request().model_copy(update={"work_branch": "bad branch"}).__class__.model_validate(
             request().model_dump() | {"work_branch": "bad branch"}
         )
+
+
+def _execute_request(
+    amendment_request: ImplementationDraftPrAmendmentRequest,
+    backend: Backend,
+):
+    clock = Clock()
+    return execute_draft_pr_amendment(
+        amendment_request,
+        backend,
+        timeout_seconds=3,
+        poll_interval_seconds=1,
+        clock=clock,
+        sleeper=clock.sleep,
+    )
+
+
+def _request_with_pr_base(
+    expected_pr_base_sha: str,
+) -> ImplementationDraftPrAmendmentRequest:
+    return ImplementationDraftPrAmendmentRequest.model_validate(
+        request().model_dump(mode="python")
+        | {"expected_pr_base_sha": expected_pr_base_sha}
+    )
+
+
+def test_old_pr_base_snapshot_is_independent_from_live_main() -> None:
+    backend = Backend(pr_base_sha=PR_BASE_OLD)
+    result = _execute_request(
+        _request_with_pr_base(PR_BASE_OLD),
+        backend,
+    )
+
+    assert result.base_sha == BASE
+    assert result.pr_base_sha_before == PR_BASE_OLD
+    assert result.pr_base_sha_after == PR_BASE_OLD
+    assert result.ci.base_head_after_ci == BASE
+    assert result.ci.base_fresh_after_ci is True
+
+
+def test_incorrect_pr_base_snapshot_fails_before_mutation() -> None:
+    backend = Backend(pr_base_sha=PR_BASE_OLD)
+
+    with pytest.raises(
+        ImplementationDraftPrAmendmentError,
+        match="binding is stale",
+    ):
+        _execute_request(
+            _request_with_pr_base("wrong-pr-base"),
+            backend,
+        )
+
+    assert backend.branches[BRANCH] == OLD
+    assert backend.dispatched == 0
+
+
+def test_live_main_mismatch_is_rejected_independently() -> None:
+    backend = Backend(pr_base_sha=PR_BASE_OLD)
+    backend.branches["main"] = "stale-live-main"
+
+    with pytest.raises(
+        ImplementationDraftPrAmendmentError,
+        match="branch 'main' moved",
+    ):
+        _execute_request(
+            _request_with_pr_base(PR_BASE_OLD),
+            backend,
+        )
+
+    assert backend.branches[BRANCH] == OLD
+    assert backend.dispatched == 0
+
+
+def test_post_amendment_pr_base_may_refresh_to_live_main() -> None:
+    backend = Backend(
+        pr_base_sha=PR_BASE_OLD,
+        post_update_pr_base_sha=BASE,
+    )
+
+    result = _execute_request(
+        _request_with_pr_base(PR_BASE_OLD),
+        backend,
+    )
+
+    assert result.pr_base_sha_before == PR_BASE_OLD
+    assert result.pr_base_sha_after == BASE
+    assert result.base_sha == BASE
+
+
+def test_unexpected_third_post_amendment_pr_base_is_rejected() -> None:
+    backend = Backend(
+        pr_base_sha=PR_BASE_OLD,
+        post_update_pr_base_sha="unexpected-third-base",
+    )
+
+    with pytest.raises(
+        ImplementationDraftPrAmendmentError,
+        match="binding is stale",
+    ):
+        _execute_request(
+            _request_with_pr_base(PR_BASE_OLD),
+            backend,
+        )
+
+    assert backend.branches[BRANCH] == NEW
+    assert backend.dispatched == 0
+

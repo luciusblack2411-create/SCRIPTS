@@ -45,6 +45,7 @@ class ImplementationDraftPrAmendmentRequest(FrozenImplementationModel):
     pr_number: int = Field(gt=0)
     base_branch: str = Field(min_length=1)
     base_sha: str = Field(min_length=1)
+    expected_pr_base_sha: str | None = Field(default=None, min_length=1)
     work_branch: str = Field(min_length=1)
     expected_head_sha: str = Field(min_length=1)
     commit_message: str = Field(min_length=1)
@@ -101,6 +102,8 @@ class ImplementationDraftPrAmendmentResult(FrozenImplementationModel):
     pr_number: int = Field(gt=0)
     base_branch: str = Field(min_length=1)
     base_sha: str = Field(min_length=1)
+    pr_base_sha_before: str = Field(min_length=1)
+    pr_base_sha_after: str = Field(min_length=1)
     work_branch: str = Field(min_length=1)
     old_head_sha: str = Field(min_length=1)
     new_head_sha: str = Field(min_length=1)
@@ -142,7 +145,12 @@ def execute_draft_pr_amendment(
     pr = backend.get_pull_request(request.repository, request.pr_number)
     if pr is None:
         raise ImplementationDraftPrAmendmentError("pull request is missing")
-    _require_pr(pr, request, request.expected_head_sha)
+    pr_base_sha_before = _require_pr(
+        pr,
+        request,
+        request.expected_head_sha,
+        allowed_base_shas=(_expected_pr_base_sha(request),),
+    )
     _require_branch(backend, request.repository, request.base_branch, request.base_sha)
     _require_branch(backend, request.repository, request.work_branch, request.expected_head_sha)
 
@@ -185,7 +193,16 @@ def execute_draft_pr_amendment(
     observed_pr = backend.get_pull_request(request.repository, request.pr_number)
     if observed_pr is None:
         raise ImplementationDraftPrAmendmentError("pull request disappeared after amendment")
-    _require_pr(observed_pr, request, new_head_sha)
+    pr_base_sha_after = _require_pr(
+        observed_pr,
+        request,
+        new_head_sha,
+        allowed_base_shas=tuple(
+            dict.fromkeys(
+                (_expected_pr_base_sha(request), request.base_sha)
+            )
+        ),
+    )
 
     ci = validate_draft_pr_amendment_ci(
         request,
@@ -202,6 +219,8 @@ def execute_draft_pr_amendment(
         pr_number=request.pr_number,
         base_branch=request.base_branch,
         base_sha=request.base_sha,
+        pr_base_sha_before=pr_base_sha_before,
+        pr_base_sha_after=pr_base_sha_after,
         work_branch=request.work_branch,
         old_head_sha=request.expected_head_sha,
         new_head_sha=new_head_sha,
@@ -282,24 +301,58 @@ def validate_draft_pr_amendment_ci(
         sleeper(poll_interval_seconds)
 
 
-def _require_pr(pr: Mapping[str, object], request: ImplementationDraftPrAmendmentRequest, head_sha: str) -> None:
+def _expected_pr_base_sha(
+    request: ImplementationDraftPrAmendmentRequest,
+) -> str:
+    return request.expected_pr_base_sha or request.base_sha
+
+
+def _require_pr(
+    pr: Mapping[str, object],
+    request: ImplementationDraftPrAmendmentRequest,
+    head_sha: str,
+    *,
+    allowed_base_shas: tuple[str, ...],
+) -> str:
     if pr.get("number") != request.pr_number:
-        raise ImplementationDraftPrAmendmentError("pull request number is inconsistent")
-    if pr.get("state") != "open" or pr.get("draft") is not True or pr.get("merged") is not False:
-        raise ImplementationDraftPrAmendmentError("pull request must be open, Draft, and unmerged")
+        raise ImplementationDraftPrAmendmentError(
+            "pull request number is inconsistent"
+        )
+    if (
+        pr.get("state") != "open"
+        or pr.get("draft") is not True
+        or pr.get("merged") is not False
+    ):
+        raise ImplementationDraftPrAmendmentError(
+            "pull request must be open, Draft, and unmerged"
+        )
     base = _mapping(pr.get("base"), "pull request base")
     head = _mapping(pr.get("head"), "pull request head")
-    head_repo = _mapping(head.get("repo"), "pull request head repository")
-    base_repo = _mapping(base.get("repo"), "pull request base repository")
+    head_repo = _mapping(
+        head.get("repo"),
+        "pull request head repository",
+    )
+    base_repo = _mapping(
+        base.get("repo"),
+        "pull request base repository",
+    )
+    observed_base_sha = _required_string(
+        base,
+        "sha",
+        "pull request base",
+    )
     if (
         base.get("ref") != request.base_branch
-        or base.get("sha") != request.base_sha
+        or observed_base_sha not in allowed_base_shas
         or head.get("ref") != request.work_branch
         or head.get("sha") != head_sha
         or head_repo.get("full_name") != request.repository
         or base_repo.get("full_name") != request.repository
     ):
-        raise ImplementationDraftPrAmendmentError("pull request binding is stale or cross-repository")
+        raise ImplementationDraftPrAmendmentError(
+            "pull request binding is stale or cross-repository"
+        )
+    return observed_base_sha
 
 
 def _require_commit(commit: Mapping[str, object], sha: str, tree_sha: str, parent_sha: str) -> None:
