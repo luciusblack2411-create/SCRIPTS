@@ -16,6 +16,7 @@ from .models import AGENT_ID, SCHEMA_VERSION, FrozenImplementationModel
 from .mutation import ImplementationMutationTreeEntry
 
 WORKFLOW_FILE: Literal["ci.yml"] = "ci.yml"
+PR_BINDING_TIMEOUT_SECONDS = 30.0
 
 
 class ImplementationDraftPrAmendmentError(RuntimeError):
@@ -135,13 +136,16 @@ def execute_draft_pr_amendment(
     backend: ImplementationDraftPrAmendmentBackend,
     *,
     timeout_seconds: float = 900.0,
+    pr_binding_timeout_seconds: float = PR_BINDING_TIMEOUT_SECONDS,
     poll_interval_seconds: float = 5.0,
     clock: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> ImplementationDraftPrAmendmentResult:
     request = ImplementationDraftPrAmendmentRequest.model_validate(request.model_dump(mode="python"))
-    if timeout_seconds <= 0 or poll_interval_seconds <= 0:
-        raise ImplementationDraftPrAmendmentError("CI timeout and poll interval must be positive")
+    if timeout_seconds <= 0 or pr_binding_timeout_seconds <= 0 or poll_interval_seconds <= 0:
+        raise ImplementationDraftPrAmendmentError(
+            "CI timeout, PR binding timeout, and poll interval must be positive"
+        )
     pr = backend.get_pull_request(request.repository, request.pr_number)
     if pr is None:
         raise ImplementationDraftPrAmendmentError("pull request is missing")
@@ -190,18 +194,18 @@ def execute_draft_pr_amendment(
         request.repository, request.work_branch, request.expected_head_sha, new_head_sha
     )
     _require_branch(backend, request.repository, request.work_branch, new_head_sha)
-    observed_pr = backend.get_pull_request(request.repository, request.pr_number)
-    if observed_pr is None:
-        raise ImplementationDraftPrAmendmentError("pull request disappeared after amendment")
-    pr_base_sha_after = _require_pr(
-        observed_pr,
+    pr_base_sha_after = _wait_for_pr_head_convergence(
         request,
-        new_head_sha,
+        backend,
+        old_head_sha=request.expected_head_sha,
+        new_head_sha=new_head_sha,
         allowed_base_shas=tuple(
-            dict.fromkeys(
-                (_expected_pr_base_sha(request), request.base_sha)
-            )
+            dict.fromkeys((_expected_pr_base_sha(request), request.base_sha))
         ),
+        timeout_seconds=pr_binding_timeout_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+        clock=clock,
+        sleeper=sleeper,
     )
 
     ci = validate_draft_pr_amendment_ci(
@@ -298,6 +302,49 @@ def validate_draft_pr_amendment_ci(
                 )
         if clock() >= deadline:
             raise ImplementationDraftPrAmendmentError("timed out waiting for fresh exact-head CI")
+        sleeper(poll_interval_seconds)
+
+
+def _wait_for_pr_head_convergence(
+    request: ImplementationDraftPrAmendmentRequest,
+    backend: ImplementationDraftPrAmendmentBackend,
+    *,
+    old_head_sha: str,
+    new_head_sha: str,
+    allowed_base_shas: tuple[str, ...],
+    timeout_seconds: float,
+    poll_interval_seconds: float,
+    clock: Callable[[], float],
+    sleeper: Callable[[float], None],
+) -> str:
+    deadline = clock() + timeout_seconds
+    while True:
+        observed_pr = backend.get_pull_request(request.repository, request.pr_number)
+        if observed_pr is None:
+            raise ImplementationDraftPrAmendmentError(
+                "pull request disappeared after amendment"
+            )
+        try:
+            return _require_pr(
+                observed_pr,
+                request,
+                new_head_sha,
+                allowed_base_shas=allowed_base_shas,
+            )
+        except ImplementationDraftPrAmendmentError as new_head_error:
+            try:
+                _require_pr(
+                    observed_pr,
+                    request,
+                    old_head_sha,
+                    allowed_base_shas=allowed_base_shas,
+                )
+            except ImplementationDraftPrAmendmentError:
+                raise new_head_error
+        if clock() >= deadline:
+            raise ImplementationDraftPrAmendmentError(
+                "timed out waiting for pull request head convergence"
+            )
         sleeper(poll_interval_seconds)
 
 
