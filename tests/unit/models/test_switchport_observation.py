@@ -119,6 +119,17 @@ def test_open_text_fields_preserve_unrecognized_valid_tokens() -> None:
     assert record.voice_vlan == "dot1p"
 
 
+
+def test_allowed_vlans_preserves_expression_longer_than_4096_characters() -> None:
+    allowed_vlans = ",".join(str(vlan) for vlan in range(1, 1201))
+
+    assert len(allowed_vlans) > 4096
+
+    record = _record(1, allowed_vlans=allowed_vlans)
+
+    assert record.allowed_vlans == allowed_vlans
+
+
 def test_optional_text_normalizes_blank_to_none_but_preserves_explicit_none_token() -> None:
     record = _record(
         1,

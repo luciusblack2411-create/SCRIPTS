@@ -39,7 +39,7 @@ class SwitchportRecord(BaseModel):
     operational_mode: str | None = Field(max_length=128)
     access_vlan: str | None = Field(max_length=256)
     native_vlan: str | None = Field(max_length=256)
-    allowed_vlans: str | None = Field(max_length=4096)
+    allowed_vlans: str | None
     voice_vlan: str | None = Field(max_length=256)
     negotiation_of_trunking: StrictBool | None
 
