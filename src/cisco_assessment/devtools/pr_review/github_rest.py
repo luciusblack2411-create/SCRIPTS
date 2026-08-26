@@ -106,7 +106,6 @@ class GitHubRestReadBackend:
     def __init__(self, transport: GitHubHttpTransport | None = None) -> None:
         token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
         self._transport = transport or UrllibGitHubTransport(token=token)
-        self._workflow_pr_context: dict[int, tuple[str, str]] = {}
 
     def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
         path = f"{_repo_path(repository)}/pulls/{pr_number}"
@@ -162,8 +161,6 @@ class GitHubRestReadBackend:
                 "workflow runs",
             )
             page_runs = _mapping_array(payload.get("workflow_runs"), "workflow_runs")
-            for run in page_runs:
-                self._remember_workflow_pr_context(run)
             runs.extend(page_runs)
             if len(page_runs) < 100:
                 break
@@ -189,19 +186,13 @@ class GitHubRestReadBackend:
             if observed is None:
                 continue
             merge_ref, merge_sha, log_head_sha, log_base_sha = observed
-            cached = self._workflow_pr_context.get(run_id)
-            head_sha, base_sha = (
-                (log_head_sha, log_base_sha)
-                if cached is None
-                else (cached[1], cached[0])
-            )
-            if head_sha is None or base_sha is None:
+            if log_head_sha is None or log_base_sha is None:
                 continue
             return {
                 "ref": merge_ref,
                 "sha": merge_sha,
-                "base_sha": base_sha,
-                "head_sha": head_sha,
+                "base_sha": log_base_sha,
+                "head_sha": log_head_sha,
             }
         return None
 
@@ -232,26 +223,6 @@ class GitHubRestReadBackend:
                 break
             page += 1
         return tuple(items)
-
-    def _remember_workflow_pr_context(self, run: Mapping[str, object]) -> None:
-        run_id = _require_int(run, "id")
-        pull_requests = run.get("pull_requests")
-        if not isinstance(pull_requests, Sequence) or isinstance(pull_requests, (str, bytes)):
-            return
-        if len(pull_requests) != 1:
-            return
-        item = pull_requests[0]
-        if not isinstance(item, Mapping):
-            return
-        pr = cast(Mapping[str, object], item)
-        base = pr.get("base")
-        head = pr.get("head")
-        if not isinstance(base, Mapping) or not isinstance(head, Mapping):
-            return
-        base_sha = base.get("sha")
-        head_sha = head.get("sha")
-        if isinstance(base_sha, str) and isinstance(head_sha, str):
-            self._workflow_pr_context[run_id] = (base_sha, head_sha)
 
 
 def _parse_checkout_log(logs: str) -> tuple[str, str, str | None, str | None] | None:

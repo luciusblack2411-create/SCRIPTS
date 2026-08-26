@@ -92,7 +92,7 @@ def evaluate_ci_merge_provenance(
             severity=ReviewFindingSeverity.WARNING,
             title="Successful CI used a stale or different pull-request merge checkout",
             observation=(
-                f"Workflow run {run.run_id} succeeded, but its pull-request event/checkout "
+                f"Workflow run {run.run_id} succeeded, but its workflow identity or checkout "
                 "provenance does not match the current base/head pair."
             ),
             evidence=(stale_evidence[index - 1],),
@@ -124,8 +124,6 @@ def _has_complete_provenance(run: GitHubWorkflowRun) -> bool:
     return (
         run.event is not None
         and run.pull_request_number is not None
-        and run.pull_request_base_sha is not None
-        and run.pull_request_head_sha is not None
         and run.checkout is not None
     )
 
@@ -147,8 +145,7 @@ def _is_fresh_merge_checkout(run: GitHubWorkflowRun, context: PullRequestContext
     return (
         run.event == "pull_request"
         and run.pull_request_number == context.pr_number
-        and run.pull_request_base_sha == context.base_branch_head_sha
-        and run.pull_request_head_sha == context.head_sha
+        and run.head_sha == context.head_sha
         and checkout.ref in _expected_merge_refs(context.pr_number)
         and checkout.base_sha == context.base_branch_head_sha
         and checkout.head_sha == context.head_sha
@@ -164,8 +161,9 @@ def _run_evidence(
 ) -> ReviewEvidence:
     checkout = run.checkout
     observed = (
-        f"event={run.event};pr={run.pull_request_number};"
-        f"base={run.pull_request_base_sha};head={run.pull_request_head_sha};"
+        f"event={run.event};pr={run.pull_request_number};run_head={run.head_sha};"
+        f"event_base_snapshot={run.pull_request_base_sha};"
+        f"event_head_snapshot={run.pull_request_head_sha};"
         f"ref={None if checkout is None else checkout.ref};"
         f"checkout_sha={None if checkout is None else checkout.sha};"
         f"checkout_base={None if checkout is None else checkout.base_sha};"
@@ -173,8 +171,8 @@ def _run_evidence(
     )
     expected_refs = ",".join(sorted(_expected_merge_refs(context.pr_number)))
     expected = (
-        f"event=pull_request;pr={context.pr_number};base={context.base_branch_head_sha};"
-        f"head={context.head_sha};ref in [{expected_refs}];"
+        f"event=pull_request;pr={context.pr_number};run_head={context.head_sha};"
+        f"ref in [{expected_refs}];"
         f"checkout_base={context.base_branch_head_sha};checkout_head={context.head_sha}"
     )
     return ReviewEvidence(

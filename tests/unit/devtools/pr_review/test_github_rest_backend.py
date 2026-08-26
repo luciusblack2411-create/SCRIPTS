@@ -120,7 +120,71 @@ def test_backend_paginates_pull_request_files_in_api_order() -> None:
     assert transport.json_calls == [page_one_path, page_two_path]
 
 
-def test_workflow_checkout_provenance_uses_event_metadata_and_real_checkout_log() -> None:
+def test_workflow_checkout_provenance_prefers_exact_merge_log_over_event_snapshot() -> None:
+    transport = FakeTransport()
+    head_sha = "94c9bc459cd9123d5a066229b7fdab688c04c54f"
+    historical_base = "58d02cfc6e169386834252b4855f04057bb8ba5b"
+    current_base = "0f1a9c1bc25272c82fe5264981a2afc82abca7f6"
+    merge_sha = "770e92162f43cd63dc4f20be2531b7c36080b7a6"
+    runs_path = (
+        "/repos/luciusblack2411-create/SCRIPTS/actions/runs"
+        f"?event=pull_request&head_sha={head_sha}&per_page=100&page=1"
+    )
+    jobs_path = "/repos/luciusblack2411-create/SCRIPTS/actions/runs/33014164215/jobs?per_page=100"
+    logs_path = "/repos/luciusblack2411-create/SCRIPTS/actions/jobs/98327922176/logs"
+    transport.add_json(
+        runs_path,
+        {
+            "workflow_runs": [
+                {
+                    "id": 33014164215,
+                    "name": "CI",
+                    "head_sha": head_sha,
+                    "status": "completed",
+                    "conclusion": "success",
+                    "event": "pull_request",
+                    "pull_requests": [
+                        {
+                            "number": 93,
+                            "base": {"sha": historical_base},
+                            "head": {"sha": head_sha},
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    transport.add_json(jobs_path, {"jobs": [{"id": 98327922176}]})
+    transport.add_text(
+        logs_path,
+        accept="application/vnd.github+json",
+        response=(
+            "git -c protocol.version=2 fetch --no-tags origin "
+            f"+{merge_sha}:refs/remotes/pull/93/merge\n"
+            "git checkout --progress --force refs/remotes/pull/93/merge\n"
+            f"HEAD is now at 770e921 Merge {head_sha} into {current_base}\n"
+        ),
+    )
+
+    backend = GitHubRestReadBackend(transport)
+    runs = backend.list_commit_workflow_runs(
+        "luciusblack2411-create/SCRIPTS", head_sha
+    )
+    provenance = backend.get_workflow_checkout_provenance(
+        "luciusblack2411-create/SCRIPTS", 33014164215
+    )
+
+    assert len(runs) == 1
+    assert provenance == {
+        "ref": "refs/remotes/pull/93/merge",
+        "sha": merge_sha,
+        "base_sha": current_base,
+        "head_sha": head_sha,
+    }
+    assert transport.text_calls == [(logs_path, "application/vnd.github+json")]
+
+
+def test_workflow_checkout_provenance_does_not_infer_merge_parents_from_event_metadata() -> None:
     transport = FakeTransport()
     runs_path = (
         "/repos/owner/repo/actions/runs"
@@ -166,16 +230,11 @@ def test_workflow_checkout_provenance_uses_event_metadata_and_real_checkout_log(
     provenance = backend.get_workflow_checkout_provenance("owner/repo", 134)
 
     assert len(runs) == 1
-    assert provenance == {
-        "ref": "refs/remotes/pull/37/merge",
-        "sha": "1111111111111111111111111111111111111111",
-        "base_sha": "base-sha",
-        "head_sha": "head-sha",
-    }
+    assert provenance is None
     assert transport.text_calls == [(logs_path, "application/vnd.github+json")]
 
 
-def test_checkout_provenance_can_fall_back_to_exact_merge_message() -> None:
+def test_checkout_provenance_can_use_exact_merge_message_without_event_metadata() -> None:
     transport = FakeTransport()
     jobs_path = "/repos/owner/repo/actions/runs/134/jobs?per_page=100"
     logs_path = "/repos/owner/repo/actions/jobs/971/logs"
