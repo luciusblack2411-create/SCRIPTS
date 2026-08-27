@@ -96,7 +96,8 @@ def prepare_human_merge_authorization_challenge(
     base = _require_mapping(pull_request.get("base"), "base")
     head = _require_mapping(pull_request.get("head"), "head")
     base_branch = _require_str(base, "ref")
-    base_sha = _require_str(base, "sha")
+    # Validate the historical snapshot field without conflating it with live HEAD.
+    _require_str(base, "sha")
     head_branch = _require_str(head, "ref")
     head_sha = _require_str(head, "sha")
 
@@ -109,10 +110,6 @@ def prepare_human_merge_authorization_challenge(
         backend.get_branch(request.repository, base_branch),
         "base branch",
     )
-    if live_base_sha != base_sha:
-        raise HumanMergeExecutionError(
-            "current base branch HEAD does not match the pull-request base SHA"
-        )
 
     live_head_sha = _branch_sha(
         backend.get_branch(request.repository, head_branch),
@@ -129,7 +126,7 @@ def prepare_human_merge_authorization_challenge(
         pr_number=request.pr_number,
         pr_url=f"https://github.com/{request.repository}/pull/{request.pr_number}",
         base_branch=base_branch,
-        base_sha=base_sha,
+        base_sha=live_base_sha,
         head_branch=head_branch,
         head_sha=head_sha,
     )
