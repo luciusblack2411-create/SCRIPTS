@@ -15,6 +15,8 @@ from cisco_assessment.models import (
     HardwareInventoryRecord,
     InterfaceObservation,
     InterfaceStatusRecord,
+    SwitchportObservation,
+    SwitchportRecord,
     VlanObservation,
     VlanRecord,
 )
@@ -36,6 +38,8 @@ from .models import (
     RuleOutcomeReport,
     RuleReferenceReport,
     SourceTraceReport,
+    SwitchportObservationReport,
+    SwitchportRecordReport,
     TargetSnapshotReport,
     VlanObservationReport,
     VlanRecordReport,
@@ -54,6 +58,7 @@ class AssessmentReportBuilder:
         hardware_inventory: HardwareInventory | None = None,
         interface_observation: InterfaceObservation | None = None,
         vlan_observation: VlanObservation | None = None,
+        switchport_observation: SwitchportObservation | None = None,
         generated_at: datetime | None = None,
         report_id: UUID | None = None,
     ) -> AssessmentReport:
@@ -64,6 +69,7 @@ class AssessmentReportBuilder:
             hardware_inventory=hardware_inventory,
             interface_observation=interface_observation,
             vlan_observation=vlan_observation,
+            switchport_observation=switchport_observation,
         )
 
         status_counts = {status: 0 for status in AssessmentStatus}
@@ -143,6 +149,19 @@ class AssessmentReportBuilder:
                     vlans=tuple(self._map_vlan_record(item) for item in vlan_observation.vlans),
                 )
             ),
+            switchport_observation=(
+                None
+                if switchport_observation is None
+                else SwitchportObservationReport(
+                    schema_version=switchport_observation.schema_version,
+                    vendor=switchport_observation.vendor,
+                    platform=switchport_observation.platform,
+                    interfaces=tuple(
+                        self._map_switchport_record(item)
+                        for item in switchport_observation.interfaces
+                    ),
+                )
+            ),
             summary=AssessmentSummary(
                 rules_evaluated=len(result.outcomes),
                 findings_total=len(result.findings),
@@ -165,6 +184,7 @@ class AssessmentReportBuilder:
         hardware_inventory: HardwareInventory | None,
         interface_observation: InterfaceObservation | None,
         vlan_observation: VlanObservation | None,
+        switchport_observation: SwitchportObservation | None,
     ) -> None:
         if result.assessment_run_id != run.id:
             raise ReportBuildError("AssessmentResult assessment_run_id does not match AssessmentRun")
@@ -180,6 +200,13 @@ class AssessmentReportBuilder:
             raise ReportBuildError("InterfaceObservation platform does not match DeviceInfo platform")
         if vlan_observation is not None and vlan_observation.platform != device_info.platform:
             raise ReportBuildError("VlanObservation platform does not match DeviceInfo platform")
+        if (
+            switchport_observation is not None
+            and switchport_observation.platform != device_info.platform
+        ):
+            raise ReportBuildError(
+                "SwitchportObservation platform does not match DeviceInfo platform"
+            )
 
         for evidence in AssessmentReportBuilder._all_evidence(result):
             for source in evidence.sources:
@@ -233,6 +260,21 @@ class AssessmentReportBuilder:
             name=record.name,
             status=record.status,
             ports=record.ports,
+        )
+
+    @staticmethod
+    def _map_switchport_record(record: SwitchportRecord) -> SwitchportRecordReport:
+        return SwitchportRecordReport(
+            ordinal=record.ordinal,
+            interface=record.interface,
+            switchport_enabled=record.switchport_enabled,
+            administrative_mode=record.administrative_mode,
+            operational_mode=record.operational_mode,
+            access_vlan=record.access_vlan,
+            native_vlan=record.native_vlan,
+            allowed_vlans=record.allowed_vlans,
+            voice_vlan=record.voice_vlan,
+            negotiation_of_trunking=record.negotiation_of_trunking,
         )
 
     @staticmethod

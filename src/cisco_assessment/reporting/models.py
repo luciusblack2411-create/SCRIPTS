@@ -13,6 +13,7 @@ from pydantic import (
     JsonValue,
     NonNegativeInt,
     PositiveInt,
+    StrictBool,
     field_validator,
 )
 
@@ -148,6 +149,31 @@ class VlanObservationReport(ReportModel):
     vlans: tuple[VlanRecordReport, ...]
 
 
+class SwitchportRecordReport(ReportModel):
+    """Canonical report representation of one SwitchportObservation v0.1 record."""
+
+    ordinal: PositiveInt
+    interface: str
+    switchport_enabled: StrictBool | None
+    administrative_mode: str | None
+    operational_mode: str | None
+    access_vlan: str | None
+    native_vlan: str | None
+    allowed_vlans: str | None
+    voice_vlan: str | None
+    negotiation_of_trunking: StrictBool | None
+
+
+class SwitchportObservationReport(ReportModel):
+    """Canonical SwitchportObservation v0.1 report view in observation/RAW order."""
+
+    normalized_model: Literal["SwitchportObservation"] = "SwitchportObservation"
+    schema_version: str
+    vendor: str
+    platform: PlatformFamily
+    interfaces: tuple[SwitchportRecordReport, ...]
+
+
 class RuleReferenceReport(ReportModel):
     rule_id: str
     rule_version: str
@@ -220,6 +246,7 @@ class AssessmentReport(ReportModel):
     hardware_inventory: HardwareInventoryReport | None = None
     interface_observation: InterfaceObservationReport | None = None
     vlan_observation: VlanObservationReport | None = None
+    switchport_observation: SwitchportObservationReport | None = None
     summary: AssessmentSummary
     outcomes: tuple[RuleOutcomeReport, ...]
     findings: tuple[FindingReport, ...]
