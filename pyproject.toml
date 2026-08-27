@@ -33,6 +33,7 @@ cisco-draft-pr-control = "cisco_assessment.devtools.implementation.draft_pr_cont
 cisco-draft-pr-amendment-control = "cisco_assessment.devtools.implementation.draft_pr_amendment_control_plane_cli:app"
 cisco-ready-for-review-control = "cisco_assessment.devtools.ready_for_review_control_plane_cli:app"
 cisco-human-merge-control = "cisco_assessment.devtools.human_merge_control_plane_cli:app"
+cisco-return-to-draft-control = "cisco_assessment.devtools.return_to_draft_control_plane_cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cisco_assessment"]
