@@ -29,6 +29,14 @@ from .interface_observation_rules import (
 )
 from .models import AssessmentResult, Finding, RuleDecision, RuleMetadata, RuleOutcome
 from .rules import AssessmentRule
+from .switchport_observation_rules import (
+    SWITCHPORT_OBSERVATION_RULES,
+    AdministrativeSwitchportModesObservedRule,
+    OperationalSwitchportModesObservedRule,
+    SwitchportInventoryObservedRule,
+    TrunkNegotiationStatesObservedRule,
+    switchport_observation_rule_catalog,
+)
 from .vlan_observation_rules import (
     VLAN_OBSERVATION_RULES,
     ActiveUnsupportedVlansObservedRule,
@@ -42,8 +50,10 @@ __all__ = [
     "DEVICE_INFO_RULES",
     "HARDWARE_INVENTORY_RULES",
     "INTERFACE_OBSERVATION_RULES",
+    "SWITCHPORT_OBSERVATION_RULES",
     "VLAN_OBSERVATION_RULES",
     "ActiveUnsupportedVlansObservedRule",
+    "AdministrativeSwitchportModesObservedRule",
     "AssessmentContext",
     "AssessmentEngine",
     "AssessmentResult",
@@ -62,6 +72,7 @@ __all__ = [
     "IOSXEBootModeRule",
     "NonDefaultHostnameRule",
     "NormalizedFieldSource",
+    "OperationalSwitchportModesObservedRule",
     "RuleCatalog",
     "RuleCategory",
     "RuleDecision",
@@ -70,6 +81,8 @@ __all__ = [
     "SoftwareVersionObservedRule",
     "SourceTrace",
     "SuspendedVlansObservedRule",
+    "SwitchportInventoryObservedRule",
+    "TrunkNegotiationStatesObservedRule",
     "UniqueInventorySerialsRule",
     "UnknownVlanStatusRule",
     "UnrecognizedInterfaceStatusRule",
@@ -77,5 +90,6 @@ __all__ = [
     "device_info_rule_catalog",
     "hardware_inventory_rule_catalog",
     "interface_observation_rule_catalog",
+    "switchport_observation_rule_catalog",
     "vlan_observation_rule_catalog",
 ]
