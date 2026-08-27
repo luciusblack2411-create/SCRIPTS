@@ -8,7 +8,8 @@ from typing import Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .pr_review.enums import ReviewDecision
+from .pr_review.check_ids import ReviewCheckId
+from .pr_review.enums import ReviewCheckStatus, ReviewDecision
 from .pr_review.github import GitHubReadBackend
 from .pr_review.models import ReviewReport, ReviewRequest
 from .pr_review.reviewer import review_pr
@@ -146,23 +147,11 @@ def execute_human_merge(
 
     if report.base_branch_head_sha is None:
         raise HumanMergeError("APPROVE report must contain current base branch HEAD evidence")
-    if report.base_branch_head_sha != report.base_sha:
-        return _result(
-            report=report,
-            authorization=operation.authorization,
-            pr_url=pr_url,
-            decision=HumanMergeDecision.NEEDS_BASE_REFRESH,
-        )
+    _require_ci_merge_provenance_pass(report)
 
     live_pr = merge_backend.get_pull_request(report.repository, report.pr_number)
     _validate_live_ready_state(live_pr)
-    if not _live_refs_match_report(live_pr, report):
-        return _result(
-            report=report,
-            authorization=operation.authorization,
-            pr_url=pr_url,
-            decision=HumanMergeDecision.NEEDS_BASE_REFRESH,
-        )
+    _validate_live_refs(live_pr, report)
     if not _refs_match_report(merge_backend, report):
         return _result(
             report=report,
@@ -203,7 +192,7 @@ def execute_human_merge(
 
     _validate_merge_commit_parents(
         merge_backend.get_commit(report.repository, merge_sha),
-        expected_base_sha=report.base_sha,
+        expected_base_sha=report.base_branch_head_sha,
         expected_head_sha=report.head_sha,
     )
     return HumanMergeResult(
@@ -211,7 +200,7 @@ def execute_human_merge(
         pr_number=report.pr_number,
         pr_url=pr_url,
         base_branch=report.base_branch,
-        base_sha=report.base_sha,
+        base_sha=report.base_branch_head_sha,
         head_branch=report.head_branch,
         head_sha=report.head_sha,
         review_report=report,
@@ -221,6 +210,25 @@ def execute_human_merge(
         merge_commit_sha=merge_sha,
         main_head_after_merge=main_head,
     )
+
+
+def _require_ci_merge_provenance_pass(report: ReviewReport) -> None:
+    matches = tuple(
+        check for check in report.checks if check.check_id is ReviewCheckId.CI_003
+    )
+    if len(matches) != 1:
+        raise HumanMergeError(
+            "APPROVE report must contain exactly one CI-003 merge-provenance check"
+        )
+    check = matches[0]
+    if (
+        not check.applicable
+        or check.status is not ReviewCheckStatus.PASS
+        or not check.evidence
+    ):
+        raise HumanMergeError(
+            "APPROVE report must contain applicable CI-003 PASS evidence"
+        )
 
 
 def _validate_report_binding(request: ReviewRequest, report: ReviewReport) -> None:
@@ -240,8 +248,8 @@ def _validate_authorization(
 ) -> None:
     if authorization.repository != report.repository or authorization.pr_number != report.pr_number:
         raise HumanMergeError("human authorization repository/PR does not match reviewed evidence")
-    if authorization.base_sha != report.base_sha:
-        raise HumanMergeError("human authorization base SHA does not match reviewed evidence")
+    if authorization.base_sha != report.base_branch_head_sha:
+        raise HumanMergeError("human authorization base SHA does not match live base evidence")
     if authorization.head_sha != report.head_sha:
         raise HumanMergeError("human authorization head SHA does not match reviewed evidence")
 
@@ -255,15 +263,23 @@ def _validate_live_ready_state(payload: Mapping[str, object]) -> None:
         raise HumanMergeError("pull request is already merged")
 
 
-def _live_refs_match_report(payload: Mapping[str, object], report: ReviewReport) -> bool:
+def _validate_live_refs(payload: Mapping[str, object], report: ReviewReport) -> None:
     base = _require_mapping(payload.get("base"), "base")
     head = _require_mapping(payload.get("head"), "head")
-    return (
-        _require_str(base, "ref") == report.base_branch
-        and _require_str(base, "sha") == report.base_sha
-        and _require_str(head, "ref") == report.head_branch
-        and _require_str(head, "sha") == report.head_sha
-    )
+    if (
+        _require_str(base, "ref") != report.base_branch
+        or _require_str(base, "sha") != report.base_sha
+    ):
+        raise HumanMergeError(
+            "pull request base ref/SHA no longer matches reviewed snapshot evidence"
+        )
+    if (
+        _require_str(head, "ref") != report.head_branch
+        or _require_str(head, "sha") != report.head_sha
+    ):
+        raise HumanMergeError(
+            "pull request head ref/SHA no longer matches reviewed evidence"
+        )
 
 
 def _validate_merged_pr(payload: Mapping[str, object], report: ReviewReport) -> None:
@@ -284,9 +300,11 @@ def _validate_merged_pr(payload: Mapping[str, object], report: ReviewReport) -> 
 
 
 def _refs_match_report(backend: HumanMergeBackend, report: ReviewReport) -> bool:
+    if report.base_branch_head_sha is None:
+        return False
     base_sha = _branch_sha(backend.get_branch(report.repository, report.base_branch), "base branch")
     head_sha = _branch_sha(backend.get_branch(report.repository, report.head_branch), "head branch")
-    return base_sha == report.base_sha and head_sha == report.head_sha
+    return base_sha == report.base_branch_head_sha and head_sha == report.head_sha
 
 
 def _validate_merge_commit_parents(
@@ -326,7 +344,7 @@ def _result(
         pr_number=report.pr_number,
         pr_url=pr_url,
         base_branch=report.base_branch,
-        base_sha=report.base_sha,
+        base_sha=authorization.base_sha,
         head_branch=report.head_branch,
         head_sha=report.head_sha,
         review_report=report,
