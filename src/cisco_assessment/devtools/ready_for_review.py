@@ -8,7 +8,8 @@ from typing import Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .pr_review.enums import ReviewDecision
+from .pr_review.check_ids import ReviewCheckId
+from .pr_review.enums import ReviewCheckStatus, ReviewDecision
 from .pr_review.github import GitHubReadBackend
 from .pr_review.models import ReviewReport, ReviewRequest
 from .pr_review.reviewer import review_pr
@@ -119,25 +120,14 @@ def execute_ready_for_review(
             report=report,
             pr_url=pr_url,
             base_head_after_transition=report.base_branch_head_sha,
-            base_fresh_after_transition=(
-                report.base_branch_head_sha is not None
-                and report.base_branch_head_sha == report.base_sha
-            ),
+            base_fresh_after_transition=report.base_branch_head_sha is not None,
             decision=ReadyForReviewDecision.REVIEW_NOT_APPROVED,
             ready_for_review=False,
         )
 
     if report.base_branch_head_sha is None:
         raise ReadyForReviewError("APPROVE report must contain current base branch HEAD evidence")
-    if report.base_branch_head_sha != report.base_sha:
-        return _result(
-            report=report,
-            pr_url=pr_url,
-            base_head_after_transition=report.base_branch_head_sha,
-            base_fresh_after_transition=False,
-            decision=ReadyForReviewDecision.NEEDS_BASE_REFRESH,
-            ready_for_review=False,
-        )
+    _require_ci_merge_provenance_pass(report)
 
     _validate_live_draft_pr(
         transition_backend.get_pull_request(report.repository, report.pr_number),
@@ -183,7 +173,10 @@ def execute_ready_for_review(
         transition_backend.get_branch(report.repository, report.head_branch),
         "head branch",
     )
-    base_fresh = base_head_after == report.base_sha and head_after == report.head_sha
+    base_fresh = (
+        base_head_after == report.base_branch_head_sha
+        and head_after == report.head_sha
+    )
     return _result(
         report=report,
         pr_url=pr_url,
@@ -196,6 +189,25 @@ def execute_ready_for_review(
         ),
         ready_for_review=True,
     )
+
+
+def _require_ci_merge_provenance_pass(report: ReviewReport) -> None:
+    matches = tuple(
+        check for check in report.checks if check.check_id is ReviewCheckId.CI_003
+    )
+    if len(matches) != 1:
+        raise ReadyForReviewError(
+            "APPROVE report must contain exactly one CI-003 merge-provenance check"
+        )
+    check = matches[0]
+    if (
+        not check.applicable
+        or check.status is not ReviewCheckStatus.PASS
+        or not check.evidence
+    ):
+        raise ReadyForReviewError(
+            "APPROVE report must contain applicable CI-003 PASS evidence"
+        )
 
 
 def _validate_report_binding(request: ReviewRequest, report: ReviewReport) -> None:
@@ -239,9 +251,11 @@ def _validate_live_refs(payload: Mapping[str, object], report: ReviewReport) -> 
 
 
 def _refs_match_report(backend: ReadyForReviewBackend, report: ReviewReport) -> bool:
+    if report.base_branch_head_sha is None:
+        return False
     base_sha = _branch_sha(backend.get_branch(report.repository, report.base_branch), "base branch")
     head_sha = _branch_sha(backend.get_branch(report.repository, report.head_branch), "head branch")
-    return base_sha == report.base_sha and head_sha == report.head_sha
+    return base_sha == report.base_branch_head_sha and head_sha == report.head_sha
 
 
 def _branch_sha(payload: Mapping[str, object] | None, label: str) -> str:
