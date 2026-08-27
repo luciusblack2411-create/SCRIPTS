@@ -18,6 +18,7 @@ from cisco_assessment.models import (
     HardwareInventory,
     InterfaceObservation,
     RawCommandOutput,
+    SwitchportObservation,
     VlanObservation,
 )
 from cisco_assessment.parsers import ParseResult
@@ -64,6 +65,7 @@ class AssessmentRunnerResult:
     hardware_inventory_parse_result: ParseResult[HardwareInventory] | None = None
     interface_observation_parse_result: ParseResult[InterfaceObservation] | None = None
     vlan_observation_parse_result: ParseResult[VlanObservation] | None = None
+    switchport_observation_parse_result: ParseResult[SwitchportObservation] | None = None
 
     @property
     def parse_result(self) -> ParseResult[DeviceInfo]:
