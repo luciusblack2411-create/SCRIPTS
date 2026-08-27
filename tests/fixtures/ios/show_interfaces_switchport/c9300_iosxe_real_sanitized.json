@@ -1,0 +1,28 @@
+{
+  "characterization": {
+    "blocks_with_all_m14_target_fields": 156,
+    "blocks_with_only_name_switchport_admin_mode": 154,
+    "interface_blocks": 310,
+    "replacements": 21
+  },
+  "cli": "show interfaces switchport",
+  "command_id": "interfaces.switchport",
+  "original": {
+    "byte_length": 183529,
+    "sha256": "be84c7f6908858d77f8651b623c6f30d568e0b0e8c7e33df556ae04ed448d1f6",
+    "stored_in_repository": false
+  },
+  "platform": "ios_xe",
+  "sanitization": "Site-specific VLAN display names in Access/Native VLAN fields and the device prompt were replaced with equal-length neutral tokens. Interface identifiers, VLAN IDs, modes, explicit none/ALL tokens, bundle annotations, spacing, CR/LF, pagination markers, backspaces, line count, and total byte length were preserved.",
+  "sanitized_fixture": {
+    "byte_length": 183529,
+    "sha256": "901b9a1a3aed745e4f228c0c5332bf956293078654d4f15c5f086cc051cce422",
+    "terminal_artifacts": {
+      "--More--": 244,
+      "backspace": 4392,
+      "cr": 5617,
+      "lf": 5617
+    }
+  },
+  "source": "sanitized-real-device-capture"
+}
