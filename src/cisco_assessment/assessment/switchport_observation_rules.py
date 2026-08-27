@@ -87,9 +87,7 @@ class SwitchportInventoryObservedRule:
         return RuleDecision(
             status=AssessmentStatus.INFO,
             message=(
-                f"Observed {len(names)} interface(s) in the normalized switchport inventory: "
-                + ", ".join(names)
-                + "."
+                f"Observed {len(names)} interface(s) in the normalized switchport inventory."
             ),
             evidence=_field_evidence(
                 model,
@@ -137,16 +135,10 @@ class AdministrativeSwitchportModesObservedRule:
                 status=AssessmentStatus.PASS,
                 message="No administrative switchport mode values are demonstrated.",
             )
-        observations = tuple(
-            f"{model.interfaces[index].interface}={model.interfaces[index].administrative_mode}"
-            for index in indexes
-        )
         return RuleDecision(
             status=AssessmentStatus.INFO,
             message=(
-                f"Observed {len(indexes)} demonstrated administrative switchport mode value(s): "
-                + ", ".join(observations)
-                + "."
+                f"Observed {len(indexes)} demonstrated administrative switchport mode value(s)."
             ),
             evidence=_field_evidence(model, "administrative_mode", indexes),
         )
@@ -190,16 +182,10 @@ class OperationalSwitchportModesObservedRule:
                 status=AssessmentStatus.PASS,
                 message="No operational switchport mode values are demonstrated.",
             )
-        observations = tuple(
-            f"{model.interfaces[index].interface}={model.interfaces[index].operational_mode}"
-            for index in indexes
-        )
         return RuleDecision(
             status=AssessmentStatus.INFO,
             message=(
-                f"Observed {len(indexes)} demonstrated operational switchport mode value(s): "
-                + ", ".join(observations)
-                + "."
+                f"Observed {len(indexes)} demonstrated operational switchport mode value(s)."
             ),
             evidence=_field_evidence(model, "operational_mode", indexes),
         )

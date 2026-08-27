@@ -102,8 +102,10 @@ def test_swp_001_reports_inventory_and_only_demonstrated_switchport_state() -> N
     outcome = _single_rule_outcome(SwitchportInventoryObservedRule(), model)
 
     assert outcome.status is AssessmentStatus.INFO
-    assert "GigabitEthernet1/0/1" in outcome.message
-    assert "GigabitEthernet1/0/2" in outcome.message
+    assert (
+        outcome.message
+        == "Observed 2 interface(s) in the normalized switchport inventory."
+    )
     assert tuple(item.field_path for item in outcome.evidence) == (
         "interfaces[0].interface",
         "interfaces[0].switchport_enabled",
@@ -111,7 +113,7 @@ def test_swp_001_reports_inventory_and_only_demonstrated_switchport_state() -> N
     )
 
 
-def test_swp_002_preserves_all_administrative_mode_text_without_ranking() -> None:
+def test_swp_002_preserves_all_administrative_mode_text_in_evidence_without_ranking() -> None:
     modes = ("dynamic auto", "trunk", "static access", "future mode text")
     model = _observation(
         *(
@@ -123,7 +125,10 @@ def test_swp_002_preserves_all_administrative_mode_text_without_ranking() -> Non
     outcome = _single_rule_outcome(AdministrativeSwitchportModesObservedRule(), model)
 
     assert outcome.status is AssessmentStatus.INFO
-    assert all(mode in outcome.message for mode in modes)
+    assert (
+        outcome.message
+        == "Observed 4 demonstrated administrative switchport mode value(s)."
+    )
     assert tuple(
         item.observed_value
         for item in outcome.evidence
@@ -140,7 +145,7 @@ def test_swp_002_passes_and_requests_no_optional_mode_evidence_when_absent() -> 
     assert outcome.evidence == ()
 
 
-def test_swp_003_preserves_parenthetical_operational_mode_text() -> None:
+def test_swp_003_preserves_parenthetical_operational_mode_text_in_evidence() -> None:
     mode = "trunk (member of bundle Po10)"
     model = _observation(
         _record(1, interface="GigabitEthernet1/0/48", operational_mode=mode)
@@ -149,7 +154,10 @@ def test_swp_003_preserves_parenthetical_operational_mode_text() -> None:
     outcome = _single_rule_outcome(OperationalSwitchportModesObservedRule(), model)
 
     assert outcome.status is AssessmentStatus.INFO
-    assert mode in outcome.message
+    assert (
+        outcome.message
+        == "Observed 1 demonstrated operational switchport mode value(s)."
+    )
     assert outcome.evidence[1].field_path == "interfaces[0].operational_mode"
     assert outcome.evidence[1].observed_value == mode
 
@@ -222,6 +230,96 @@ def test_v0_1_catalog_never_emits_warning_or_fail_for_valid_observations() -> No
     assert all(
         outcome.status not in {AssessmentStatus.FAIL, AssessmentStatus.WARNING}
         for outcome in result.outcomes
+    )
+
+
+def test_310_interface_inventory_keeps_swp_messages_bounded_and_evidence_complete() -> None:
+    model = _observation(
+        *(
+            _record(
+                ordinal,
+                interface=f"GigabitEthernet1/0/{ordinal}",
+                switchport_enabled=True,
+                administrative_mode="dynamic auto",
+                operational_mode="static access",
+                negotiation_of_trunking=bool(ordinal % 2),
+            )
+            for ordinal in range(1, 311)
+        )
+    )
+
+    result = AssessmentEngine(
+        switchport_observation_rule_catalog()
+    ).evaluate(
+        model,
+        _context(),
+    )
+
+    outcomes = {
+        outcome.rule_id: outcome
+        for outcome in result.outcomes
+    }
+
+    assert tuple(outcome.status for outcome in result.outcomes) == (
+        AssessmentStatus.INFO,
+        AssessmentStatus.INFO,
+        AssessmentStatus.INFO,
+        AssessmentStatus.INFO,
+    )
+
+    assert all(
+        outcome.status
+        not in {
+            AssessmentStatus.ERROR,
+            AssessmentStatus.WARNING,
+            AssessmentStatus.FAIL,
+        }
+        for outcome in result.outcomes
+    )
+
+    assert (
+        outcomes["SWP-001"].message
+        == "Observed 310 interface(s) in the normalized switchport inventory."
+    )
+
+    assert (
+        outcomes["SWP-002"].message
+        == "Observed 310 demonstrated administrative switchport mode value(s)."
+    )
+
+    assert (
+        outcomes["SWP-003"].message
+        == "Observed 310 demonstrated operational switchport mode value(s)."
+    )
+
+    for rule_id in (
+        "SWP-001",
+        "SWP-002",
+        "SWP-003",
+    ):
+        outcome = outcomes[rule_id]
+
+        assert len(outcome.message) <= 2048
+        assert outcome.error_type is None
+        assert outcome.error_message is None
+
+    assert len(outcomes["SWP-001"].evidence) == 620
+    assert len(outcomes["SWP-002"].evidence) == 620
+    assert len(outcomes["SWP-003"].evidence) == 620
+
+    assert (
+        outcomes["SWP-001"].evidence[-1].field_path
+        == "interfaces[309].switchport_enabled"
+    )
+
+    assert (
+        outcomes["SWP-002"].evidence[-1].field_path
+        == "interfaces[309].administrative_mode"
+    )
+
+    assert (
+        outcomes["SWP-003"].evidence[-1].field_path
+        == "interfaces[309].operational_mode"
     )
 
 
