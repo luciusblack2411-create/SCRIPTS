@@ -16,6 +16,7 @@ from .errors import (
 )
 from .ios import (
     IOSShowInterfacesStatusParser,
+    IOSShowInterfacesSwitchportParser,
     IOSShowInventoryParser,
     IOSShowVersionParser,
     IOSShowVlanBriefParser,
@@ -38,6 +39,7 @@ def build_parser_registry() -> ParserRegistry:
     registry.register(IOSShowVersionParser())
     registry.register(IOSShowInventoryParser())
     registry.register(IOSShowInterfacesStatusParser())
+    registry.register(IOSShowInterfacesSwitchportParser())
     registry.register(IOSShowVlanBriefParser())
     return registry
 
@@ -51,6 +53,7 @@ __all__ = [
     "GenieDependencyError",
     "GenieExtractionError",
     "IOSShowInterfacesStatusParser",
+    "IOSShowInterfacesSwitchportParser",
     "IOSShowInventoryParser",
     "IOSShowVersionParser",
     "IOSShowVlanBriefParser",
