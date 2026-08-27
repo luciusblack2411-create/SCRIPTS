@@ -24,20 +24,12 @@ class HumanMergeReviewRequestFileError(HumanMergeExecutionError):
 
 
 class HumanMergeChallengeBackend(Protocol):
-    """Minimal read-only GitHub surface needed before asking for authorization."""
+    def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]: ...
 
-    def get_pull_request(self, repository: str, pr_number: int) -> Mapping[str, object]:
-        """Read current pull-request state and refs."""
-        ...
-
-    def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
-        """Read one current branch ref."""
-        ...
+    def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None: ...
 
 
 class FrozenExecutionModel(BaseModel):
-    """Strict immutable base model for execution-surface contracts."""
-
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
@@ -58,7 +50,6 @@ class HumanMergeAuthorizationChallenge(FrozenExecutionModel):
 
 
 def load_human_merge_review_request(path: Path) -> ReviewRequest:
-    """Load one strict ReviewRequest without inferring scope or authorization."""
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
@@ -77,48 +68,36 @@ def prepare_human_merge_authorization_challenge(
     review_request: ReviewRequest,
     backend: HumanMergeChallengeBackend,
 ) -> HumanMergeAuthorizationChallenge:
-    """Read exact live PR refs and fail closed before requesting human authorization."""
+    """Display live branch heads while preserving the PR snapshot independently."""
     request = ReviewRequest.model_validate(review_request.model_dump(mode="python"))
     pull_request = backend.get_pull_request(request.repository, request.pr_number)
-
-    observed_pr_number = _require_int(pull_request, "number")
-    if observed_pr_number != request.pr_number:
-        raise HumanMergeExecutionError(
-            f"pull-request number mismatch: requested {request.pr_number}, got {observed_pr_number}"
-        )
+    if _require_int(pull_request, "number") != request.pr_number:
+        raise HumanMergeExecutionError("pull-request number mismatch")
     if _require_str(pull_request, "state") != "open":
         raise HumanMergeExecutionError("pull request must be open before authorization")
-    if _require_bool(pull_request, "draft") is not False:
+    if _require_bool(pull_request, "draft"):
         raise HumanMergeExecutionError("pull request must be Ready for Review before authorization")
-    if _require_bool(pull_request, "merged") is not False:
+    if _require_bool(pull_request, "merged"):
         raise HumanMergeExecutionError("pull request is already merged")
 
     base = _require_mapping(pull_request.get("base"), "base")
     head = _require_mapping(pull_request.get("head"), "head")
     base_branch = _require_str(base, "ref")
-    base_sha = _require_str(base, "sha")
     head_branch = _require_str(head, "ref")
-    head_sha = _require_str(head, "sha")
-
+    pr_head_sha = _require_str(head, "sha")
+    _require_str(base, "sha")  # Validate, but do not conflate the PR snapshot with live HEAD.
     if base_branch != request.expected_base_branch:
         raise HumanMergeExecutionError(
             "pull request base branch does not match the ReviewRequest expected base branch"
         )
 
     live_base_sha = _branch_sha(
-        backend.get_branch(request.repository, base_branch),
-        "base branch",
+        backend.get_branch(request.repository, base_branch), "base branch"
     )
-    if live_base_sha != base_sha:
-        raise HumanMergeExecutionError(
-            "current base branch HEAD does not match the pull-request base SHA"
-        )
-
     live_head_sha = _branch_sha(
-        backend.get_branch(request.repository, head_branch),
-        "head branch",
+        backend.get_branch(request.repository, head_branch), "head branch"
     )
-    if live_head_sha != head_sha:
+    if live_head_sha != pr_head_sha:
         raise HumanMergeExecutionError(
             "current head branch HEAD does not match the pull-request head SHA"
         )
@@ -129,9 +108,9 @@ def prepare_human_merge_authorization_challenge(
         pr_number=request.pr_number,
         pr_url=f"https://github.com/{request.repository}/pull/{request.pr_number}",
         base_branch=base_branch,
-        base_sha=base_sha,
+        base_sha=live_base_sha,
         head_branch=head_branch,
-        head_sha=head_sha,
+        head_sha=live_head_sha,
     )
 
 
@@ -142,7 +121,6 @@ def build_human_merge_operation_from_challenge(
     authorized_by: str,
     rationale: str,
 ) -> HumanMergeOperation:
-    """Convert one exact displayed challenge into the existing protected operation contract."""
     challenge = HumanMergeAuthorizationChallenge.model_validate(
         challenge.model_dump(mode="python")
     )
@@ -150,18 +128,17 @@ def build_human_merge_operation_from_challenge(
         raise HumanMergeExecutionError(
             "human authorization requires the exact decision MERGE_APPROVED"
         )
-    authorization = HumanMergeAuthorization(
-        decision="MERGE_APPROVED",
-        repository=challenge.repository,
-        pr_number=challenge.pr_number,
-        base_sha=challenge.base_sha,
-        head_sha=challenge.head_sha,
-        authorized_by=authorized_by,
-        rationale=rationale,
-    )
     return HumanMergeOperation(
         review_request=challenge.review_request,
-        authorization=authorization,
+        authorization=HumanMergeAuthorization(
+            decision="MERGE_APPROVED",
+            repository=challenge.repository,
+            pr_number=challenge.pr_number,
+            base_sha=challenge.base_sha,
+            head_sha=challenge.head_sha,
+            authorized_by=authorized_by,
+            rationale=rationale,
+        ),
         merge_method="merge",
     )
 
@@ -169,15 +146,14 @@ def build_human_merge_operation_from_challenge(
 def render_human_merge_authorization_challenge(
     challenge: HumanMergeAuthorizationChallenge,
 ) -> str:
-    """Render the exact refs the human is authorizing without credential material."""
     return "\n".join(
         (
             "Human Merge Authorization Challenge",
             f"PR: #{challenge.pr_number} {challenge.pr_url}",
-            f"Base: {challenge.base_branch}@{challenge.base_sha}",
+            f"Live base: {challenge.base_branch}@{challenge.base_sha}",
             f"Head: {challenge.head_branch}@{challenge.head_sha}",
             "Cisco execution allowed: false",
-            "Type MERGE_APPROVED only if you authorize this exact repository/PR/base/head.",
+            "Type MERGE_APPROVED only if you authorize this exact repository/PR/live-base/head.",
         )
     )
 
@@ -185,8 +161,7 @@ def render_human_merge_authorization_challenge(
 def _branch_sha(payload: Mapping[str, object] | None, label: str) -> str:
     if payload is None:
         raise HumanMergeExecutionError(f"{label} is unavailable")
-    commit = _require_mapping(payload.get("commit"), "commit")
-    return _require_str(commit, "sha")
+    return _require_str(_require_mapping(payload.get("commit"), "commit"), "sha")
 
 
 def _require_mapping(value: object, label: str) -> Mapping[str, object]:

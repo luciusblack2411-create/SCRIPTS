@@ -17,6 +17,12 @@ from cisco_assessment.devtools.human_merge_execution import (
 from cisco_assessment.devtools.pr_review.enums import ComponentId
 from cisco_assessment.devtools.pr_review.models import ReviewRequest
 
+REPOSITORY = "luciusblack2411-create/SCRIPTS"
+PR_BASE_SHA = "a" * 40
+HEAD_SHA = "b" * 40
+LIVE_BASE_SHA = "c" * 40
+HEAD_BRANCH = "feat/example"
+
 
 class _ChallengeBackend:
     def __init__(
@@ -39,7 +45,7 @@ class _ChallengeBackend:
 
 def _request() -> ReviewRequest:
     return ReviewRequest(
-        repository="luciusblack2411-create/SCRIPTS",
+        repository=REPOSITORY,
         pr_number=71,
         expected_base_branch="main",
         objective="Approved feature",
@@ -49,68 +55,82 @@ def _request() -> ReviewRequest:
     )
 
 
-def _pull_request(*, draft: bool = False) -> dict[str, object]:
+def _pull_request(
+    *,
+    draft: bool = False,
+    base_ref: str = "main",
+    base_sha: str = PR_BASE_SHA,
+    head_ref: str = HEAD_BRANCH,
+    head_sha: str = HEAD_SHA,
+) -> dict[str, object]:
     return {
         "number": 71,
         "state": "open",
         "draft": draft,
         "merged": False,
-        "base": {"ref": "main", "sha": "a" * 40},
-        "head": {"ref": "feat/example", "sha": "b" * 40},
+        "base": {"ref": base_ref, "sha": base_sha},
+        "head": {"ref": head_ref, "sha": head_sha},
     }
 
 
-def _backend(*, draft: bool = False, base_head_sha: str | None = None) -> _ChallengeBackend:
+def _backend(
+    *,
+    draft: bool = False,
+    live_base_sha: str = LIVE_BASE_SHA,
+    live_head_sha: str = HEAD_SHA,
+) -> _ChallengeBackend:
     return _ChallengeBackend(
         _pull_request(draft=draft),
         {
-            "main": {"commit": {"sha": base_head_sha or "a" * 40}},
-            "feat/example": {"commit": {"sha": "b" * 40}},
+            "main": {"commit": {"sha": live_base_sha}},
+            HEAD_BRANCH: {"commit": {"sha": live_head_sha}},
         },
     )
 
 
-def test_challenge_binds_live_refs_and_builds_existing_operation_contract() -> None:
+def test_challenge_accepts_historical_snapshot_and_authorizes_live_base() -> None:
     challenge = prepare_human_merge_authorization_challenge(_request(), _backend())
 
+    assert PR_BASE_SHA != LIVE_BASE_SHA
     assert challenge.execution_surface_id == EXECUTION_SURFACE_ID
-    assert challenge.repository == "luciusblack2411-create/SCRIPTS"
+    assert challenge.repository == REPOSITORY
     assert challenge.pr_number == 71
     assert challenge.base_branch == "main"
-    assert challenge.base_sha == "a" * 40
-    assert challenge.head_branch == "feat/example"
-    assert challenge.head_sha == "b" * 40
+    assert challenge.base_sha == LIVE_BASE_SHA
+    assert challenge.head_branch == HEAD_BRANCH
+    assert challenge.head_sha == HEAD_SHA
     assert challenge.cisco_execution_allowed is False
 
     operation = build_human_merge_operation_from_challenge(
         challenge,
         decision="MERGE_APPROVED",
         authorized_by="human-operator",
-        rationale="Exact refs reviewed.",
+        rationale="Exact live refs reviewed.",
     )
 
     assert operation.review_request == _request()
     assert operation.authorization.repository == challenge.repository
     assert operation.authorization.pr_number == challenge.pr_number
-    assert operation.authorization.base_sha == challenge.base_sha
-    assert operation.authorization.head_sha == challenge.head_sha
+    assert operation.authorization.base_sha == LIVE_BASE_SHA
+    assert operation.authorization.head_sha == HEAD_SHA
     assert operation.authorization.decision == "MERGE_APPROVED"
     assert operation.merge_method == "merge"
 
     rendered = render_human_merge_authorization_challenge(challenge)
-    assert f"main@{'a' * 40}" in rendered
-    assert f"feat/example@{'b' * 40}" in rendered
+    assert f"main@{LIVE_BASE_SHA}" in rendered
+    assert f"{HEAD_BRANCH}@{HEAD_SHA}" in rendered
+    assert f"main@{PR_BASE_SHA}" not in rendered
     assert "Cisco execution allowed: false" in rendered
 
 
-def test_challenge_fails_closed_for_draft_or_stale_base() -> None:
+def test_challenge_rejects_draft_or_live_head_drift() -> None:
     with pytest.raises(HumanMergeExecutionError, match="Ready for Review"):
         prepare_human_merge_authorization_challenge(_request(), _backend(draft=True))
 
-    with pytest.raises(HumanMergeExecutionError, match="base branch HEAD"):
+    with pytest.raises(HumanMergeExecutionError, match="head branch HEAD"):
         prepare_human_merge_authorization_challenge(
             _request(),
-            _backend(base_head_sha="c" * 40),
+            _backend(live_head_sha="d" * 40),
         )
 
 
