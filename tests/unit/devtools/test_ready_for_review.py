@@ -4,8 +4,19 @@ from collections.abc import Mapping
 
 import pytest
 
-from cisco_assessment.devtools.pr_review.enums import ComponentId, ReviewDecision
-from cisco_assessment.devtools.pr_review.models import ReviewReport, ReviewRequest
+from cisco_assessment.devtools.pr_review.check_ids import ReviewCheckId
+from cisco_assessment.devtools.pr_review.enums import (
+    ComponentId,
+    ReviewCheckStatus,
+    ReviewDecision,
+    ReviewEvidenceKind,
+)
+from cisco_assessment.devtools.pr_review.models import (
+    ReviewCheck,
+    ReviewEvidence,
+    ReviewReport,
+    ReviewRequest,
+)
 from cisco_assessment.devtools.ready_for_review import (
     ReadyForReviewAuthorization,
     ReadyForReviewDecision,
@@ -15,8 +26,9 @@ from cisco_assessment.devtools.ready_for_review import (
 )
 
 REPOSITORY = "luciusblack2411-create/SCRIPTS"
-BASE_SHA = "a" * 40
+PR_BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
+LIVE_BASE_SHA = "c" * 40
 
 
 class FakeReviewBackend:
@@ -27,13 +39,21 @@ class FakeTransitionBackend:
     def __init__(
         self,
         *,
-        base_sha: str = BASE_SHA,
+        base_sha: str = LIVE_BASE_SHA,
         head_sha: str = HEAD_SHA,
         post_base_sha: str | None = None,
+        pr_base_ref: str = "main",
+        pr_base_sha: str = PR_BASE_SHA,
+        pr_head_ref: str = "agent/implementation/example",
+        pr_head_sha: str = HEAD_SHA,
     ) -> None:
         self.base_sha = base_sha
         self.head_sha = head_sha
         self.post_base_sha = post_base_sha
+        self.pr_base_ref = pr_base_ref
+        self.pr_base_sha = pr_base_sha
+        self.pr_head_ref = pr_head_ref
+        self.pr_head_sha = pr_head_sha
         self.ready = False
         self.mark_calls = 0
 
@@ -44,8 +64,8 @@ class FakeTransitionBackend:
             "state": "open",
             "draft": not self.ready,
             "merged": False,
-            "base": {"ref": "main", "sha": BASE_SHA},
-            "head": {"ref": "agent/implementation/example", "sha": HEAD_SHA},
+            "base": {"ref": self.pr_base_ref, "sha": self.pr_base_sha},
+            "head": {"ref": self.pr_head_ref, "sha": self.pr_head_sha},
         }
 
     def get_branch(self, repository: str, branch: str) -> Mapping[str, object] | None:
@@ -78,19 +98,52 @@ def _request() -> ReviewRequest:
     )
 
 
-def _report(decision: ReviewDecision = ReviewDecision.APPROVE) -> ReviewReport:
+def _ci_003(
+    status: ReviewCheckStatus = ReviewCheckStatus.PASS,
+) -> ReviewCheck:
+    applicable = status is not ReviewCheckStatus.NOT_APPLICABLE
+    evidence = (
+        (
+            ReviewEvidence(
+                evidence_id="CI-003:ev:001",
+                kind=ReviewEvidenceKind.CI_CHECK,
+                description="Current base/head merge checkout was proved by CI.",
+                check_id=ReviewCheckId.CI_003,
+            ),
+        )
+        if status is ReviewCheckStatus.PASS
+        else ()
+    )
+    return ReviewCheck(
+        check_id=ReviewCheckId.CI_003,
+        name="Successful CI proves the current pull-request merge checkout",
+        category="CI",
+        status=status,
+        applicable=applicable,
+        summary="test CI provenance",
+        evidence=evidence,
+        findings=(),
+        blocking=True,
+    )
+
+
+def _report(
+    decision: ReviewDecision = ReviewDecision.APPROVE,
+    *,
+    ci_status: ReviewCheckStatus = ReviewCheckStatus.PASS,
+) -> ReviewReport:
     return ReviewReport(
         repository=REPOSITORY,
         pr_number=61,
         base_branch="main",
-        base_sha=BASE_SHA,
-        base_branch_head_sha=BASE_SHA,
+        base_sha=PR_BASE_SHA,
+        base_branch_head_sha=LIVE_BASE_SHA,
         head_branch="agent/implementation/example",
         head_sha=HEAD_SHA,
         mergeable=True,
         objective="Validate review handoff.",
         detected_components=(ComponentId.TESTING_FIXTURES,),
-        checks=(),
+        checks=(_ci_003(ci_status),),
         findings=(),
         contracts_changed=(),
         contracts_verified_stable=(),
@@ -116,7 +169,7 @@ def _reviewer(report: ReviewReport):
     return execute
 
 
-def test_approve_marks_draft_ready_and_stops_before_merge() -> None:
+def test_approve_accepts_historical_pr_snapshot_and_marks_ready() -> None:
     backend = FakeTransitionBackend()
     result = execute_ready_for_review(
         _operation(),
@@ -132,6 +185,9 @@ def test_approve_marks_draft_ready_and_stops_before_merge() -> None:
     assert result.merge_performed is False
     assert result.human_merge_gate_required is True
     assert result.cisco_execution_allowed is False
+    assert result.base_sha == PR_BASE_SHA
+    assert result.base_head_after_transition == LIVE_BASE_SHA
+    assert result.base_fresh_after_transition is True
     assert backend.mark_calls == 1
 
 
@@ -149,8 +205,8 @@ def test_non_approve_never_mutates_pull_request() -> None:
     assert backend.mark_calls == 0
 
 
-def test_stale_base_never_mutates_pull_request() -> None:
-    backend = FakeTransitionBackend(base_sha="c" * 40)
+def test_live_base_drift_never_mutates_pull_request() -> None:
+    backend = FakeTransitionBackend(base_sha="d" * 40)
     result = execute_ready_for_review(
         _operation(),
         review_backend=FakeReviewBackend(),
@@ -160,6 +216,42 @@ def test_stale_base_never_mutates_pull_request() -> None:
 
     assert result.decision is ReadyForReviewDecision.NEEDS_BASE_REFRESH
     assert result.ready_for_review is False
+    assert backend.mark_calls == 0
+
+
+def test_invalid_pr_snapshot_binding_never_mutates_pull_request() -> None:
+    backend = FakeTransitionBackend(pr_base_sha="d" * 40)
+
+    with pytest.raises(
+        ReadyForReviewError,
+        match="pull request base ref/SHA no longer matches reviewed evidence",
+    ):
+        execute_ready_for_review(
+            _operation(),
+            review_backend=FakeReviewBackend(),
+            transition_backend=backend,
+            reviewer=_reviewer(_report()),
+        )
+
+    assert backend.mark_calls == 0
+
+
+def test_approve_requires_ci_003_pass_evidence() -> None:
+    backend = FakeTransitionBackend()
+
+    with pytest.raises(
+        ReadyForReviewError,
+        match="CI-003 PASS evidence",
+    ):
+        execute_ready_for_review(
+            _operation(),
+            review_backend=FakeReviewBackend(),
+            transition_backend=backend,
+            reviewer=_reviewer(
+                _report(ci_status=ReviewCheckStatus.NOT_APPLICABLE)
+            ),
+        )
+
     assert backend.mark_calls == 0
 
 
