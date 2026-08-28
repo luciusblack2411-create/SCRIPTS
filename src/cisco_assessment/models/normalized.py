@@ -17,7 +17,7 @@ from pydantic import (
 from .base import SCHEMA_VERSION
 from .enums import PlatformFamily
 
-HARDWARE_INVENTORY_SCHEMA_VERSION: Literal["0.2"] = "0.2"
+HARDWARE_INVENTORY_SCHEMA_VERSION: Literal["0.3"] = "0.3"
 
 
 class DeviceInfo(BaseModel):
@@ -63,6 +63,8 @@ class HardwareComponentType(StrEnum):
     """Normalized physical role for one ``show inventory`` record."""
 
     CHASSIS_MEMBER = "chassis_member"
+    SUPERVISOR = "supervisor"
+    LINE_CARD = "line_card"
     POWER_SUPPLY = "power_supply"
     TRANSCEIVER = "transceiver"
     STACK_ADAPTER = "stack_adapter"
@@ -141,7 +143,7 @@ class HardwareInventoryRecord(BaseModel):
 
 
 class HardwareInventory(BaseModel):
-    """Canonical Hardware Inventory normalized contract v0.2.
+    """Canonical Hardware Inventory normalized contract v0.3.
 
     ``records`` is the only construction and serialization contract for physical
     inventory. Parent relationships are optional and must be explicit:
@@ -151,7 +153,7 @@ class HardwareInventory(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal["0.2"] = HARDWARE_INVENTORY_SCHEMA_VERSION
+    schema_version: Literal["0.3"] = HARDWARE_INVENTORY_SCHEMA_VERSION
     vendor: Literal["Cisco"] = "Cisco"
     platform: PlatformFamily
     records: tuple[HardwareInventoryRecord, ...] = Field(min_length=1)
