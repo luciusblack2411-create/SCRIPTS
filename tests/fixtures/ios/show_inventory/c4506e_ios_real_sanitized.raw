@@ -1,0 +1,42 @@
+show inventory
+NAME: "Switch System", DESCR: "Cisco Systems, Inc. WS-C4506-E 6 slot switch "
+PID: WS-C4506-E        , VID: V03  , SN: SER00000001
+
+NAME: "Supervisor(slot 1)", DESCR: "Supervisor 6L-E 10GE (X2), 1000BaseX (SFP) with 2 10GE X2 ports"
+PID: WS-X45-SUP6L-E    , VID: V06  , SN: SER00000002
+
+NAME: "Linecard(slot 2)", DESCR: "10/100/1000BaseT (RJ45)+V E Series with 48 10/100/1000 baseT Premium PoE ports (Cisco/IEEE)"
+PID: WS-X4648-RJ45V+E  , VID: V06  , SN: SER00000003
+
+NAME: "Linecard(slot 3)", DESCR: "10/100/1000BaseT (RJ45)+V E Series with 48 10/100/1000 baseT Premium PoE ports (Cisco/IEEE)"
+PID: WS-X4648-RJ45V+E  , VID: V06  , SN: SER00000004
+
+NAME: "Linecard(slot 4)", DESCR: "1000BaseX (GBIC) with 6 1000 GBIC ports"
+PID: WS-X4306-GB       , VID: V12  , SN: SER00000005
+
+NAME: "GigabitEthernet4/1", DESCR: "1000BaseSX"
+PID: Unspecified       , VID:      , SN: SER00000006
+
+NAME: "GigabitEthernet4/2", DESCR: "1000BaseSX"
+PID: Unspecified       , VID:      , SN: SER00000007
+ --More--         
+NAME: "GigabitEthernet4/3", DESCR: "1000BaseSX"
+PID: Unspecified       , VID:      , SN: SER00000008
+
+NAME: "GigabitEthernet4/4", DESCR: "1000BaseSX"
+PID: Unspecified       , VID:      , SN: SER00000009
+
+NAME: "GigabitEthernet4/5", DESCR: "1000BaseSX"
+PID: Unspecified       , VID:      , SN: SER00000010
+
+NAME: "FanTray 1", DESCR: "FanTray"
+PID: WS-X4596-E        , VID: V04  , SN: SER00000011
+
+NAME: "Power Supply 1", DESCR: "Power Supply ( AC 2800W )"
+PID: PWR-C45-2800ACV   , VID: V06  , SN: SER00000012
+
+NAME: "Power Supply 2", DESCR: "Power Supply ( AC 2800W )"
+PID: PWR-C45-2800ACV   , VID: V06  , SN: SER00000013
+
+
+SWITCHSWITC#
