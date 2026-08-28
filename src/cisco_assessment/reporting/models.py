@@ -246,7 +246,10 @@ class AssessmentReport(ReportModel):
     hardware_inventory: HardwareInventoryReport | None = None
     interface_observation: InterfaceObservationReport | None = None
     vlan_observation: VlanObservationReport | None = None
-    switchport_observation: SwitchportObservationReport | None = None
+    switchport_observation: SwitchportObservationReport | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     summary: AssessmentSummary
     outcomes: tuple[RuleOutcomeReport, ...]
     findings: tuple[FindingReport, ...]
