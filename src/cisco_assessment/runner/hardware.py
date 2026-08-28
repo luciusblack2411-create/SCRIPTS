@@ -147,6 +147,9 @@ class MultiDomainAssessmentRunner(AssessmentRunner):
             hardware_inventory=hardware_parse.data if hardware_parse is not None else None,
             interface_observation=interface_parse.data if interface_parse is not None else None,
             vlan_observation=vlan_parse.data if vlan_parse is not None else None,
+            switchport_observation=(
+                switchport_parse.data if switchport_parse is not None else None
+            ),
         )
         rendered_report = self._report_renderer.render(report)
         report_path = self._persist_report(
