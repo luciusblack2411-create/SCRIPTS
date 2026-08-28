@@ -441,11 +441,36 @@ def test_switchport_productive_runner_preserves_real_paged_raw_and_evaluates_rul
         is None
     )
 
+    switchport_report = result.report.switchport_observation
+    assert switchport_report is not None
+    assert switchport_report.normalized_model == "SwitchportObservation"
+    assert switchport_report.schema_version == parsed.data.schema_version
+    assert switchport_report.vendor == parsed.data.vendor
+    assert switchport_report.platform is parsed.data.platform
+    assert len(switchport_report.interfaces) == len(parsed.data.interfaces)
+    assert tuple(
+        item.ordinal for item in switchport_report.interfaces
+    ) == tuple(
+        item.ordinal for item in parsed.data.interfaces
+    )
+    assert tuple(
+        item.interface for item in switchport_report.interfaces
+    ) == tuple(
+        item.interface for item in parsed.data.interfaces
+    )
+
     payload = json.loads(
         result.rendered_report.content
     )
 
-    assert "switchport_observation" not in payload
+    switchport_payload = payload["switchport_observation"]
+    assert switchport_payload["normalized_model"] == "SwitchportObservation"
+    assert switchport_payload["schema_version"] == "0.1"
+    assert len(switchport_payload["interfaces"]) == 310
+    assert switchport_payload["interfaces"] == [
+        item.model_dump(mode="json")
+        for item in switchport_report.interfaces
+    ]
 
     report_swp_rule_ids = {
         item["rule"]["rule_id"]
@@ -461,6 +486,27 @@ def test_switchport_productive_runner_preserves_real_paged_raw_and_evaluates_rul
         "SWP-003",
         "SWP-004",
     }
+
+    swp001_payload = next(
+        item
+        for item in payload["outcomes"]
+        if item["rule"]["rule_id"] == "SWP-001"
+    )
+    interface_evidence_payload = next(
+        evidence
+        for evidence in swp001_payload["evidence"]
+        if evidence["field_path"] == "interfaces[0].interface"
+    )
+    source_payload = interface_evidence_payload["sources"][0]
+
+    assert source_payload["command_execution_id"] == str(
+        switchport_execution.id
+    )
+    assert source_payload["raw_output_id"] == str(switchport_raw.id)
+    assert source_payload["raw_sha256"] == _EXPECTED_SHA256
+    assert source_payload["parser_id"] == "ios.show_interfaces_switchport.v1"
+    assert source_payload["line_start"] == source.line_start
+    assert source_payload["line_end"] == source.line_end
 
     assert (
         result.report_path.read_bytes()
