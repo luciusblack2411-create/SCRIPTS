@@ -183,7 +183,7 @@ def _execution() -> CommandExecution:
     )
 
 
-def test_parse_show_inventory_produces_canonical_v0_2_records() -> None:
+def test_parse_show_inventory_produces_canonical_v0_3_records() -> None:
     execution = _execution()
     content = (FIXTURES / "c9300_iosxe.txt").read_text(encoding="utf-8")
     raw = RawCommandOutput.from_text(command_execution_id=execution.id, content=content)
@@ -195,7 +195,7 @@ def test_parse_show_inventory_produces_canonical_v0_2_records() -> None:
     )
 
     assert result.status is ParseStatus.SUCCESS
-    assert result.data.schema_version == "0.2"
+    assert result.data.schema_version == "0.3"
     assert [record.id for record in result.data.records] == ["hw:0001", "hw:0002", "hw:0003"]
     assert [record.ordinal for record in result.data.records] == [1, 2, 3]
     assert [record.component_type for record in result.data.records] == [

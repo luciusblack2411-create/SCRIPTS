@@ -71,7 +71,7 @@ def test_multiple_members_and_known_or_unknown_parent_relationships() -> None:
         records=(child_2, member_1, unknown_parent, child_1, member_2),
     )
 
-    assert inventory.schema_version == HARDWARE_INVENTORY_SCHEMA_VERSION == "0.2"
+    assert inventory.schema_version == HARDWARE_INVENTORY_SCHEMA_VERSION == "0.3"
     assert [record.id for record in inventory.records] == [
         "hw:0001",
         "hw:0002",
@@ -99,6 +99,91 @@ def test_all_component_types_are_representable() -> None:
     inventory = HardwareInventory(platform=PlatformFamily.IOS_XE, records=records)
 
     assert {record.component_type for record in inventory.records} == set(HardwareComponentType)
+
+
+@pytest.mark.parametrize(
+    "component_type",
+    (
+        HardwareComponentType.CHASSIS_MEMBER,
+        HardwareComponentType.POWER_SUPPLY,
+        HardwareComponentType.TRANSCEIVER,
+        HardwareComponentType.STACK_ADAPTER,
+        HardwareComponentType.STACK_CABLE_ENDPOINT,
+        HardwareComponentType.NETWORK_MODULE,
+        HardwareComponentType.FAN,
+        HardwareComponentType.OTHER,
+    ),
+)
+def test_v0_2_component_types_remain_valid_in_v0_3(
+    component_type: HardwareComponentType,
+) -> None:
+    record = _record(1, name=component_type.value, component_type=component_type)
+
+    assert record.component_type is component_type
+
+
+def test_modular_chassis_hierarchy_is_representable_without_deriving_relationships() -> None:
+    chassis = _record(
+        1,
+        name="Switch System",
+        component_type=HardwareComponentType.CHASSIS_MEMBER,
+        description="WS-C4506-E chassis",
+        pid="WS-C4506-E",
+    )
+    supervisor = _record(
+        2,
+        name="Supervisor(slot 1)",
+        component_type=HardwareComponentType.SUPERVISOR,
+        parent_id=chassis.id,
+    )
+    line_card = _record(
+        3,
+        name="Linecard(slot 4)",
+        component_type=HardwareComponentType.LINE_CARD,
+        parent_id=chassis.id,
+    )
+    transceiver = _record(
+        4,
+        name="GigabitEthernet4/1",
+        description="1000BaseSX SFP",
+        component_type=HardwareComponentType.TRANSCEIVER,
+        parent_id=line_card.id,
+    )
+
+    inventory = HardwareInventory(
+        platform=PlatformFamily.IOS,
+        records=(chassis, supervisor, line_card, transceiver),
+    )
+
+    assert inventory.members == (chassis,)
+    assert inventory.children_of_member(chassis.id) == (supervisor, line_card)
+    assert inventory.children_of(line_card.id) == (transceiver,)
+    assert supervisor.component_type is HardwareComponentType.SUPERVISOR
+    assert line_card.component_type is HardwareComponentType.LINE_CARD
+    assert transceiver.parent_id == line_card.id
+
+
+def test_parent_relationships_remain_explicit_and_optional() -> None:
+    line_card = _record(
+        1,
+        name="Linecard(slot 4)",
+        component_type=HardwareComponentType.LINE_CARD,
+        parent_id=None,
+    )
+    transceiver = _record(
+        2,
+        name="GigabitEthernet4/1",
+        component_type=HardwareComponentType.TRANSCEIVER,
+        parent_id=None,
+    )
+
+    inventory = HardwareInventory(
+        platform=PlatformFamily.IOS,
+        records=(line_card, transceiver),
+    )
+
+    assert inventory.records[0].parent_id is None
+    assert inventory.records[1].parent_id is None
 
 
 def test_record_ids_are_deterministic_and_duplicate_or_inconsistent_ids_are_rejected() -> None:
@@ -143,13 +228,13 @@ def test_invalid_parent_references_cycles_and_member_parent_are_rejected() -> No
     cycle_a = _record(
         1,
         name="Cycle A",
-        component_type=HardwareComponentType.OTHER,
+        component_type=HardwareComponentType.LINE_CARD,
         parent_id="hw:0002",
     )
     cycle_b = _record(
         2,
         name="Cycle B",
-        component_type=HardwareComponentType.OTHER,
+        component_type=HardwareComponentType.TRANSCEIVER,
         parent_id="hw:0001",
     )
     with pytest.raises(ValidationError, match="must not contain cycles"):
@@ -281,12 +366,24 @@ def test_inventory_can_represent_all_17_observed_records_without_loss() -> None:
     assert target.parent_id is None
 
 
-def test_inventory_serializes_only_canonical_v0_2_fields() -> None:
+def test_inventory_serializes_only_canonical_v0_3_fields() -> None:
     record = _record(1, name="Switch 1", component_type=HardwareComponentType.CHASSIS_MEMBER)
     inventory = HardwareInventory(platform=PlatformFamily.IOS_XE, records=(record,))
 
     payload = inventory.model_dump(mode="json")
     assert set(payload) == {"schema_version", "vendor", "platform", "records"}
+    assert payload["schema_version"] == "0.3"
+    assert set(payload["records"][0]) == {
+        "ordinal",
+        "id",
+        "name",
+        "description",
+        "pid",
+        "vid",
+        "serial_number",
+        "component_type",
+        "parent_id",
+    }
     assert HardwareInventory.model_validate_json(inventory.model_dump_json()) == inventory
 
 
@@ -302,12 +399,13 @@ def test_inventory_rejects_legacy_construction_fields(legacy_field: str) -> None
         )
 
 
-def test_inventory_rejects_v0_1_schema_version() -> None:
+@pytest.mark.parametrize("schema_version", ("0.1", "0.2"))
+def test_inventory_rejects_pre_v0_3_schema_versions(schema_version: str) -> None:
     record = _record(1, name="Switch 1", component_type=HardwareComponentType.CHASSIS_MEMBER)
 
-    with pytest.raises(ValidationError, match="Input should be '0.2'"):
+    with pytest.raises(ValidationError, match="Input should be '0.3'"):
         HardwareInventory(
-            schema_version="0.1",
+            schema_version=schema_version,
             platform=PlatformFamily.IOS_XE,
             records=(record,),
         )
