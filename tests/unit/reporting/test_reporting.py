@@ -247,7 +247,7 @@ def test_json_renderer_serializes_canonical_report_without_domain_lookups() -> N
     ] == str(COMMAND_EXECUTION_ID)
 
 
-def test_hardware_inventory_report_exposes_only_canonical_v0_2_records() -> None:
+def test_hardware_inventory_report_exposes_only_canonical_v0_3_records() -> None:
     run, result, device_info = _inputs()
     inventory = _hardware_inventory()
 
@@ -260,7 +260,7 @@ def test_hardware_inventory_report_exposes_only_canonical_v0_2_records() -> None
     )
 
     assert report.hardware_inventory is not None
-    assert report.hardware_inventory.schema_version == "0.2"
+    assert report.hardware_inventory.schema_version == "0.3"
     records = report.hardware_inventory.records
     assert [record.ordinal for record in records] == [1, 2, 3, 4]
     assert [record.id for record in records] == ["hw:0001", "hw:0002", "hw:0003", "hw:0004"]
