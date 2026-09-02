@@ -25,12 +25,35 @@ _PID_RE = re.compile(
 _ANSI_CSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _PAGER_PREFIX_RE = re.compile(r"^\s*--More--\s*")
 _SWITCH_MEMBER_RE = re.compile(r"^Switch\s+(?P<member>\d+)$", re.IGNORECASE)
+_SWITCH_SYSTEM_RE = re.compile(r"^Switch\s+System$", re.IGNORECASE)
 _SWITCH_PREFIX_RE = re.compile(r"^Switch\s+(?P<member>\d+)\b", re.IGNORECASE)
+_SLOT_OWNER_RE = re.compile(
+    r"^(?P<role>Supervisor|Line\s*card)\s*\(slot\s+(?P<slot>\d+)\)$",
+    re.IGNORECASE,
+)
 _STACK_PORT_RE = re.compile(r"^StackPort(?P<member>\d+)/(?P<endpoint>\d+)$", re.IGNORECASE)
 _INTERFACE_MEMBER_RE = re.compile(
     r"^(?:Gi|Te|Tw|Fo|Hu|Eth|Ethernet|GigabitEthernet|TenGigabitEthernet|"
     r"TwentyFiveGigE|FortyGigabitEthernet|HundredGigE)"
     r"(?P<member>\d+)/\d+/\d+$",
+    re.IGNORECASE,
+)
+_MODULAR_INTERFACE_RE = re.compile(
+    r"^(?:Gi|Te|Tw|Fo|Hu|Eth|Ethernet|GigabitEthernet|TenGigabitEthernet|"
+    r"TwentyFiveGigE|FortyGigabitEthernet|HundredGigE)"
+    r"(?P<slot>\d+)/\d+$",
+    re.IGNORECASE,
+)
+_ANY_INTERFACE_RE = re.compile(
+    r"^(?:Gi|Te|Tw|Fo|Hu|Eth|Ethernet|GigabitEthernet|TenGigabitEthernet|"
+    r"TwentyFiveGigE|FortyGigabitEthernet|HundredGigE)"
+    r"(?:\d+/\d+|\d+/\d+/\d+)$",
+    re.IGNORECASE,
+)
+_OPTIC_DESCRIPTION_RE = re.compile(
+    r"(?:\btransceiver\b|\b(?:sfp|qsfp|x2|xfp)\b|"
+    r"\b(?:100|1000|10g|25g|40g|50g|100g|200g|400g)base-?"
+    r"(?:fx|sx|lx|lh|ex|zx|bx|sr|lr|er|zr|lrm|cr|cx)\b)",
     re.IGNORECASE,
 )
 _POWER_SUPPLY_MEMBER_RE = re.compile(
@@ -74,18 +97,31 @@ class _ObservedRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class _ParentEvidence:
+    extractor: str
+    line_number: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ParentResolution:
+    parent_id: str | None
+    evidence: tuple[_ParentEvidence, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class _Record:
     record: HardwareInventoryRecord
     start_line: int
     end_line: int
+    parent_evidence: tuple[_ParentEvidence, ...] = ()
 
 
 class IOSShowInventoryParser(BaseParser[HardwareInventory]):
-    """Normalize IOS/IOS-XE ``show inventory`` output into HardwareInventory v0.2."""
+    """Normalize IOS/IOS-XE ``show inventory`` output into HardwareInventory v0.3."""
 
     _descriptor = ParserDescriptor(
         parser_id=ParserId.IOS_SHOW_INVENTORY_V1,
-        parser_version="0.2.0",
+        parser_version="0.3.0",
         command_id=CommandId.SYSTEM_INVENTORY,
         normalized_model=NormalizedModelId.HARDWARE_INVENTORY,
         supported_platforms=frozenset({PlatformFamily.IOS, PlatformFamily.IOS_XE}),
@@ -171,29 +207,34 @@ class IOSShowInventoryParser(BaseParser[HardwareInventory]):
             )
 
         member_ids = self._build_unique_member_id_map(observed)
-        records = tuple(
-            _Record(
-                record=HardwareInventoryRecord(
-                    ordinal=item.ordinal,
-                    name=item.name,
-                    description=item.description,
-                    pid=item.pid,
-                    vid=item.vid,
-                    serial_number=item.serial_number,
-                    component_type=item.component_type,
-                    parent_id=self._resolve_parent_id(item, member_ids),
-                ),
-                start_line=item.start_line,
-                end_line=item.end_line,
+        slot_owners = self._build_unique_slot_owner_map(observed)
+        records: list[_Record] = []
+        for item in observed:
+            parent = self._resolve_parent(item, member_ids, slot_owners)
+            records.append(
+                _Record(
+                    record=HardwareInventoryRecord(
+                        ordinal=item.ordinal,
+                        name=item.name,
+                        description=item.description,
+                        pid=item.pid,
+                        vid=item.vid,
+                        serial_number=item.serial_number,
+                        component_type=item.component_type,
+                        parent_id=parent.parent_id,
+                    ),
+                    start_line=item.start_line,
+                    end_line=item.end_line,
+                    parent_evidence=parent.evidence,
+                )
             )
-            for item in observed
-        )
-        evidence = self._build_evidence(records)
+        canonical_records = tuple(records)
+        evidence = self._build_evidence(canonical_records)
 
         return ParsedPayload(
             data=HardwareInventory(
                 platform=platform,
-                records=tuple(item.record for item in records),
+                records=tuple(item.record for item in canonical_records),
             ),
             warnings=tuple(warnings),
             evidence=tuple(evidence),
@@ -211,25 +252,76 @@ class IOSShowInventoryParser(BaseParser[HardwareInventory]):
             member = int(match.group("member"))
             candidates.setdefault(member, []).append(hardware_inventory_record_id(item.ordinal))
 
-        return {
-            member: ids[0]
-            for member, ids in candidates.items()
-            if len(ids) == 1
-        }
+        return {member: ids[0] for member, ids in candidates.items() if len(ids) == 1}
+
+    @staticmethod
+    def _build_unique_slot_owner_map(
+        records: list[_ObservedRecord],
+    ) -> dict[int, tuple[str, int]]:
+        candidates: dict[int, list[tuple[str, int]]] = {}
+        for item in records:
+            if item.component_type not in {
+                HardwareComponentType.SUPERVISOR,
+                HardwareComponentType.LINE_CARD,
+            }:
+                continue
+            match = _SLOT_OWNER_RE.fullmatch(item.name)
+            if match is None:
+                continue
+            slot = int(match.group("slot"))
+            candidates.setdefault(slot, []).append(
+                (hardware_inventory_record_id(item.ordinal), item.start_line)
+            )
+
+        return {slot: owners[0] for slot, owners in candidates.items() if len(owners) == 1}
 
     @classmethod
-    def _resolve_parent_id(
+    def _resolve_parent(
         cls,
         record: _ObservedRecord,
         member_ids: dict[int, str],
-    ) -> str | None:
+        slot_owners: dict[int, tuple[str, int]],
+    ) -> _ParentResolution:
         if record.component_type is HardwareComponentType.CHASSIS_MEMBER:
-            return None
+            return _ParentResolution(parent_id=None)
 
         member = cls._explicit_parent_member(record)
-        if member is None:
-            return None
-        return member_ids.get(member)
+        if member is not None:
+            parent_id = member_ids.get(member)
+            if parent_id is None:
+                return _ParentResolution(parent_id=None)
+            return _ParentResolution(
+                parent_id=parent_id,
+                evidence=(
+                    _ParentEvidence(
+                        extractor="explicit_member_name_pattern",
+                        line_number=record.start_line,
+                    ),
+                ),
+            )
+
+        if record.component_type is not HardwareComponentType.TRANSCEIVER:
+            return _ParentResolution(parent_id=None)
+        interface_match = _MODULAR_INTERFACE_RE.fullmatch(record.name)
+        if interface_match is None:
+            return _ParentResolution(parent_id=None)
+        owner = slot_owners.get(int(interface_match.group("slot")))
+        if owner is None:
+            return _ParentResolution(parent_id=None)
+        parent_id, owner_line = owner
+        return _ParentResolution(
+            parent_id=parent_id,
+            evidence=(
+                _ParentEvidence(
+                    extractor="modular_interface_slot_pattern",
+                    line_number=record.start_line,
+                ),
+                _ParentEvidence(
+                    extractor="unique_slot_owner_name_pattern",
+                    line_number=owner_line,
+                ),
+            ),
+        )
 
     @staticmethod
     def _explicit_parent_member(record: _ObservedRecord) -> int | None:
@@ -270,19 +362,24 @@ class IOSShowInventoryParser(BaseParser[HardwareInventory]):
         pid_upper = (pid or "").upper()
         combined = f"{name_folded} {description_folded}"
 
-        if _SWITCH_MEMBER_RE.fullmatch(name) is not None or name_folded == "chassis":
+        if (
+            _SWITCH_MEMBER_RE.fullmatch(name) is not None
+            or _SWITCH_SYSTEM_RE.fullmatch(name) is not None
+            or name_folded == "chassis"
+        ):
             return HardwareComponentType.CHASSIS_MEMBER
+
+        slot_owner_match = _SLOT_OWNER_RE.fullmatch(name)
+        if slot_owner_match is not None:
+            role = slot_owner_match.group("role").replace(" ", "").casefold()
+            if role == "supervisor":
+                return HardwareComponentType.SUPERVISOR
+            return HardwareComponentType.LINE_CARD
+
         if _STACK_PORT_RE.fullmatch(name) is not None:
             return HardwareComponentType.STACK_CABLE_ENDPOINT
         if "power supply" in combined or pid_upper.startswith("PWR-"):
             return HardwareComponentType.POWER_SUPPLY
-        if (
-            "transceiver" in combined
-            or "sfp" in description_folded
-            or "qsfp" in description_folded
-            or pid_upper.startswith(("GLC-", "SFP-", "QSFP-", "X2-", "XFP-"))
-        ):
-            return HardwareComponentType.TRANSCEIVER
         if (
             "stack adapter" in combined
             or "stackadapter" in combined
@@ -298,6 +395,15 @@ class IOSShowInventoryParser(BaseParser[HardwareInventory]):
             return HardwareComponentType.NETWORK_MODULE
         if "fan" in combined or pid_upper.endswith("-FAN"):
             return HardwareComponentType.FAN
+        if pid_upper.startswith(("GLC-", "SFP-", "QSFP-", "X2-", "XFP-")):
+            return HardwareComponentType.TRANSCEIVER
+        if "transceiver" in combined:
+            return HardwareComponentType.TRANSCEIVER
+        if (
+            _ANY_INTERFACE_RE.fullmatch(name) is not None
+            and _OPTIC_DESCRIPTION_RE.search(description or "") is not None
+        ):
+            return HardwareComponentType.TRANSCEIVER
         return HardwareComponentType.OTHER
 
     @staticmethod
@@ -358,14 +464,15 @@ class IOSShowInventoryParser(BaseParser[HardwareInventory]):
                 )
             )
             if item.record.parent_id is not None:
-                evidence.append(
-                    FieldEvidence(
-                        field=f"{field}.parent_id",
-                        extractor="explicit_member_name_pattern",
-                        line_start=item.start_line,
-                        line_end=item.start_line,
+                for parent_evidence in item.parent_evidence:
+                    evidence.append(
+                        FieldEvidence(
+                            field=f"{field}.parent_id",
+                            extractor=parent_evidence.extractor,
+                            line_start=parent_evidence.line_number,
+                            line_end=parent_evidence.line_number,
+                        )
                     )
-                )
 
         return evidence
 
