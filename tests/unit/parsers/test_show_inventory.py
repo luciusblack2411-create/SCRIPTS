@@ -209,7 +209,7 @@ def test_parse_show_inventory_produces_canonical_v0_3_records() -> None:
     assert result.data.records[2].pid == "SFP-10G-SR"
 
     assert result.trace.parser_id is ParserId.IOS_SHOW_INVENTORY_V1
-    assert result.trace.parser_version == "0.2.0"
+    assert result.trace.parser_version == "0.3.0"
     assert result.trace.normalized_model is NormalizedModelId.HARDWARE_INVENTORY
     assert result.trace.command_execution_id == execution.id
     assert result.trace.raw_output_id == raw.id
